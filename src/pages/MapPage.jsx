@@ -14,6 +14,13 @@ const pointVert = L.divIcon({
   iconAnchor: [8, 8],
 });
 
+const pointOr = L.divIcon({
+  className: "",
+  html: '<div style="width:20px;height:20px;background:#f59e0b;border-radius:50%;border:3px solid white;box-shadow:0 0 10px #f59e0b"></div>',
+  iconSize: [20, 20],
+  iconAnchor: [10, 10],
+});
+
 const quartiers = ["Tous", "Cotonou", "Godomey", "Cocotomey", "Abomey-Calavi"];
 const types = ["Tous", "Chambre salon", "Entree couchee", "Studio", "Maison entiere"];
 
@@ -56,6 +63,7 @@ export default function MapPage({ setEcran }) {
   return (
     <div style={{ position: "relative", height: "100vh", width: "100%" }}>
 
+      {/* Barre de filtres */}
       <div style={{
         position: "absolute", top: "16px", left: "50%",
         transform: "translateX(-50%)", zIndex: 1000,
@@ -87,17 +95,44 @@ export default function MapPage({ setEcran }) {
         </button>
       </div>
 
+      {/* Carte */}
       <MapContainer center={[6.3654, 2.4183]} zoom={13}
         style={{ height: "100%", width: "100%" }}>
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-        {filtrees.map((m) => (
-          <Marker key={m.id} position={[m.lat, m.lng]} icon={pointVert}
-            eventHandlers={{ click: () => { setSelected(m); setShowReview(false); } }}>
-            <Tooltip>{m.type}</Tooltip>
-          </Marker>
-        ))}
+        {filtrees.map((m) => {
+          const estMaMaison = m.proprietaireId === auth.currentUser?.uid;
+          return (
+            <Marker
+              key={m.id}
+              position={[parseFloat(m.lat), parseFloat(m.lng)]}
+              icon={estMaMaison ? pointOr : pointVert}
+              eventHandlers={{ click: () => { setSelected(m); setShowReview(false); } }}
+            >
+              <Tooltip>{estMaMaison ? "⭐ " + m.type : m.type}</Tooltip>
+            </Marker>
+          );
+        })}
       </MapContainer>
 
+      {/* Légende */}
+      <div style={{
+        position: "absolute", bottom: "20px", right: "16px", zIndex: 1000,
+        background: "white", padding: "10px 14px", borderRadius: "12px",
+        boxShadow: "0 2px 10px rgba(0,0,0,0.15)", fontSize: "12px"
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
+          <div style={{ width: "12px", height: "12px", background: "#22c55e",
+            borderRadius: "50%", border: "2px solid white", boxShadow: "0 0 4px #22c55e" }} />
+          <span>Maison disponible</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <div style={{ width: "14px", height: "14px", background: "#f59e0b",
+            borderRadius: "50%", border: "2px solid white", boxShadow: "0 0 4px #f59e0b" }} />
+          <span>Ma maison</span>
+        </div>
+      </div>
+
+      {/* Fiche maison */}
       {selected && !showReview && (
         <div style={{
           position: "absolute", bottom: "20px", left: "50%",
@@ -117,6 +152,17 @@ export default function MapPage({ setEcran }) {
           )}
 
           <h3 style={{ margin: "0 0 4px", color: "#16a34a" }}>{selected.type}</h3>
+
+          {isMine && (
+            <span style={{
+              display: "inline-block", background: "#fef3c7",
+              color: "#92400e", fontSize: "11px", fontWeight: "bold",
+              padding: "2px 8px", borderRadius: "20px", marginBottom: "6px"
+            }}>
+              ⭐ Ma maison
+            </span>
+          )}
+
           <p style={{ margin: "0 0 4px", color: "#666", fontSize: "13px" }}>
             {selected.quartier}
           </p>
@@ -150,6 +196,7 @@ export default function MapPage({ setEcran }) {
         </div>
       )}
 
+      {/* Formulaire avis */}
       {selected && showReview && (
         <div style={{
           position: "absolute", bottom: "20px", left: "50%",
