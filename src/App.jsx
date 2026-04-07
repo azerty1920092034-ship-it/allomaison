@@ -13,15 +13,25 @@ const ADMIN_EMAIL = "appsk1653@gmail.com";
 function App() {
   const [user, setUser] = useState(null);
   const [ecran, setEcran] = useState("choix");
+  const [loading, setLoading] = useState(true);
 
- useEffect(() => {
-    localStorage.clear();
+  useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u);
-      if (!u) setEcran("choix");
+      setEcran("choix");
+      setLoading(false);
     });
     return () => unsub();
   }, []);
+
+  if (loading) return (
+    <div style={{
+      display: "flex", alignItems: "center", justifyContent: "center",
+      height: "100vh", background: "#f0fdf4"
+    }}>
+      <p style={{ color: "#16a34a", fontSize: "18px" }}>🏠 Chargement...</p>
+    </div>
+  );
 
   if (!user) return <AuthPage />;
   if (user.email === ADMIN_EMAIL) return <AdminPage />;
