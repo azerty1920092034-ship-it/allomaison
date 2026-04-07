@@ -6,6 +6,7 @@ import { signOut } from "firebase/auth";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import ReviewForm from "../components/ReviewForm";
+import ErrorBoundary from "../components/ErrorBoundary";
 
 const pointVert = L.divIcon({
   className: "",
@@ -45,22 +46,20 @@ export default function MapPage({ setEcran }) {
   useEffect(() => { loadData(); }, []);
 
   const handleDelete = async (maisonId) => {
-  if (!window.confirm("Voulez-vous vraiment supprimer cette maison ?")) return;
-  try {
-    setSuppression(true);
-    setSelected(null);
-    setShowReview(false);
-    // On attend que React re-rende AVANT de toucher Firebase
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    await deleteDoc(doc(db, "maisons", maisonId));
-    // On met à jour localement sans recharger toute la carte
-    setMaisons((prev) => prev.filter((m) => m.id !== maisonId));
-  } catch (e) {
-    alert("Erreur : " + e.message);
-  } finally {
-    setSuppression(false);
-  }
-};
+    if (!window.confirm("Voulez-vous vraiment supprimer cette maison ?")) return;
+    try {
+      setSuppression(true);
+      setSelected(null);
+      setShowReview(false);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      await deleteDoc(doc(db, "maisons", maisonId));
+      setMaisons((prev) => prev.filter((m) => m.id !== maisonId));
+    } catch (e) {
+      alert("Erreur : " + e.message);
+    } finally {
+      setSuppression(false);
+    }
+  };
 
   const handleQuitter = () => {
     signOut(auth);
@@ -83,8 +82,7 @@ export default function MapPage({ setEcran }) {
         <div style={{
           position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
           zIndex: 2000, display: "flex", alignItems: "center",
-          justifyContent: "center",
-          background: "rgba(255,255,255,0.7)"
+          justifyContent: "center", background: "rgba(255,255,255,0.7)"
         }}>
           <div style={{
             background: "white", padding: "30px 40px", borderRadius: "16px",
@@ -131,23 +129,28 @@ export default function MapPage({ setEcran }) {
       </div>
 
       {/* Carte */}
-      <MapContainer center={[6.3654, 2.4183]} zoom={13}
-        style={{ height: "100%", width: "100%" }}>
-        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-        {filtrees.map((m) => {
-          const estMaMaison = m.proprietaireId === auth.currentUser?.uid;
-          return (
-            <Marker
-              key={m.id}
-              position={[parseFloat(m.lat), parseFloat(m.lng)]}
-              icon={estMaMaison ? pointOr : pointVert}
-              eventHandlers={{ click: () => { setSelected(m); setShowReview(false); } }}
-            >
-              <Tooltip>{estMaMaison ? "⭐ " + m.type : m.type}</Tooltip>
-            </Marker>
-          );
-        })}
-      </MapContainer>
+      <ErrorBoundary>
+        <MapContainer
+          center={[6.3654, 2.4183]}
+          zoom={13}
+          style={{ height: "100%", width: "100%" }}
+        >
+          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+          {!suppression && filtrees.map((m) => {
+            const estMaMaison = m.proprietaireId === auth.currentUser?.uid;
+            return (
+              <Marker
+                key={m.id}
+                position={[parseFloat(m.lat), parseFloat(m.lng)]}
+                icon={estMaMaison ? pointOr : pointVert}
+                eventHandlers={{ click: () => { setSelected(m); setShowReview(false); } }}
+              >
+                <Tooltip>{estMaMaison ? "⭐ " + m.type : m.type}</Tooltip>
+              </Marker>
+            );
+          })}
+        </MapContainer>
+      </ErrorBoundary>
 
       {/* Légende */}
       <div style={{
