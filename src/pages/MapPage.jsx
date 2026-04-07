@@ -32,11 +32,16 @@ export default function MapPage({ setEcran }) {
 
   useEffect(() => { loadData(); }, []);
 
- const handleDelete = async (maisonId) => {
+  const handleDelete = async (maisonId) => {
     if (window.confirm("Voulez-vous vraiment supprimer cette maison ?")) {
       await deleteDoc(doc(db, "maisons", maisonId));
-      window.location.reload();
+      setSelected(null);
+      loadData();
     }
+  };
+
+  const handleQuitter = () => {
+    signOut(auth);
   };
 
   const filtrees = maisons.filter((m) => {
@@ -73,7 +78,7 @@ export default function MapPage({ setEcran }) {
           </select>
         </div>
 
-        <button onClick={() => signOut(auth)}
+        <button onClick={handleQuitter}
           style={{ padding: "6px 12px", background: "#fee2e2", color: "#dc2626",
             border: "none", borderRadius: "8px", cursor: "pointer",
             fontSize: "13px", alignSelf: "flex-end" }}>
