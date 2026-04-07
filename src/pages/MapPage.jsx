@@ -47,7 +47,8 @@ export default function MapPage({ setEcran }) {
   const filtrees = maisons.filter((m) => {
     const okQ = quartier === "Tous" || m.quartier === quartier;
     const okT = type === "Tous" || m.type === type;
-    return okQ && okT;
+    const okCoords = !isNaN(parseFloat(m.lat)) && !isNaN(parseFloat(m.lng));
+    return okQ && okT && okCoords;
   });
 
   const isMine = selected && selected.proprietaireId === auth.currentUser?.uid;

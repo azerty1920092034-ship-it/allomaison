@@ -35,6 +35,12 @@ export default function ListingForm({ onPublished }) {
   };
 
   const handleSubmit = async () => {
+    const latVal = parseFloat(form.lat);
+    const lngVal = parseFloat(form.lng);
+    if (isNaN(latVal) || isNaN(lngVal)) {
+      alert("❌ Veuillez entrer des coordonnées GPS valides (Latitude et Longitude).");
+      return;
+    }
     setLoading(true);
     try {
       let photoURL = "";
