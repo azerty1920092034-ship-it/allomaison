@@ -12,22 +12,12 @@ const ADMIN_EMAIL = "appsk1653@gmail.com";
 
 function App() {
   const [user, setUser] = useState(null);
-  const [ecran, setEcranState] = useState(
-    localStorage.getItem("ecran") || "choix"
-  );
-
-  const setEcran = (val) => {
-    localStorage.setItem("ecran", val);
-    setEcranState(val);
-  };
+  const [ecran, setEcran] = useState("choix");
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u);
-      if (!u) {
-        localStorage.removeItem("ecran");
-        setEcranState("choix");
-      }
+      if (!u) setEcran("choix");
     });
     return () => unsub();
   }, []);
