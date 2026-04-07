@@ -132,12 +132,33 @@ setTimeout(() => onPublished(), 2000);
     trouvez votre maison, faites un <strong>clic droit</strong> dessus 
     et copiez les deux chiffres qui apparaissent.
   </p>
-  <a href="https://maps.google.com" target="_blank" rel="noreferrer"
-    style={{ display: "inline-block", marginBottom: "12px", padding: "6px 12px",
-      background: "#16a34a", color: "white", borderRadius: "8px",
-      textDecoration: "none", fontSize: "12px" }}>
-    Ouvrir Google Maps
-  </a>
+  <button
+  onClick={() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          setForm(f => ({ ...f, lat: lat.toFixed(6), lng: lng.toFixed(6) }));
+          window.open(
+            "https://www.google.com/maps?q=" + lat + "," + lng,
+            "_blank"
+          );
+        },
+        () => {
+          window.open("https://maps.google.com", "_blank");
+          alert("Activez la localisation sur votre téléphone !");
+        }
+      );
+    } else {
+      window.open("https://maps.google.com", "_blank");
+    }
+  }}
+  style={{ display: "inline-block", marginBottom: "12px", padding: "6px 12px",
+    background: "#16a34a", color: "white", borderRadius: "8px",
+    border: "none", fontSize: "12px", cursor: "pointer" }}>
+  📍 Utiliser ma position actuelle
+</button>
   <div style={{ display: "flex", gap: "10px" }}>
     <div style={{ flex: 1 }}>
       <p style={{ margin: "0 0 4px", fontSize: "13px", color: "#555" }}>Latitude</p>
