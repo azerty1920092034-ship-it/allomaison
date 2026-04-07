@@ -45,19 +45,22 @@ export default function MapPage({ setEcran }) {
   useEffect(() => { loadData(); }, []);
 
   const handleDelete = async (maisonId) => {
-    if (!window.confirm("Voulez-vous vraiment supprimer cette maison ?")) return;
-    try {
-      setSuppression(true);
-      setSelected(null);
-      setShowReview(false);
-      await deleteDoc(doc(db, "maisons", maisonId));
-      await loadData();
-    } catch (e) {
-      alert("Erreur lors de la suppression : " + e.message);
-    } finally {
-      setSuppression(false);
-    }
-  };
+  if (!window.confirm("Voulez-vous vraiment supprimer cette maison ?")) return;
+  try {
+    setSuppression(true);
+    setSelected(null);
+    setShowReview(false);
+    // On attend que React re-rende AVANT de toucher Firebase
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await deleteDoc(doc(db, "maisons", maisonId));
+    // On met à jour localement sans recharger toute la carte
+    setMaisons((prev) => prev.filter((m) => m.id !== maisonId));
+  } catch (e) {
+    alert("Erreur : " + e.message);
+  } finally {
+    setSuppression(false);
+  }
+};
 
   const handleQuitter = () => {
     signOut(auth);
