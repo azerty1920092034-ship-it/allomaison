@@ -14,7 +14,8 @@ function App() {
   const [user, setUser] = useState(null);
   const [ecran, setEcran] = useState("choix");
 
-  useEffect(() => {
+ useEffect(() => {
+    localStorage.clear();
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u);
       if (!u) setEcran("choix");
