@@ -18,7 +18,7 @@ function App() {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u);
-      setEcran("choix");
+      if (!u) setEcran("choix");
       setLoading(false);
     });
     return () => unsub();
@@ -26,8 +26,8 @@ function App() {
 
   if (loading) return (
     <div style={{
-      display: "flex", alignItems: "center", justifyContent: "center",
-      height: "100vh", background: "#f0fdf4"
+      display: "flex", alignItems: "center",
+      justifyContent: "center", height: "100vh", background: "#f0fdf4"
     }}>
       <p style={{ color: "#16a34a", fontSize: "18px" }}>🏠 Chargement...</p>
     </div>
@@ -40,6 +40,8 @@ function App() {
   if (ecran === "formulaire") return (
     <ListingForm onPublished={() => setEcran("carte")} />
   );
+
+  return <RoleChoice setEcran={setEcran} />;
 }
 
 export default App;
