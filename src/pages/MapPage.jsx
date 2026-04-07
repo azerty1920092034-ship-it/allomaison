@@ -30,20 +30,32 @@ export default function MapPage({ setEcran }) {
   const [type, setType] = useState("Tous");
   const [selected, setSelected] = useState(null);
   const [showReview, setShowReview] = useState(false);
+  const [suppression, setSuppression] = useState(false);
 
   const loadData = async () => {
-    const snap = await getDocs(collection(db, "maisons"));
-    const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    setMaisons(data);
+    try {
+      const snap = await getDocs(collection(db, "maisons"));
+      const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      setMaisons(data);
+    } catch (e) {
+      console.error("Erreur chargement maisons :", e);
+    }
   };
 
   useEffect(() => { loadData(); }, []);
 
   const handleDelete = async (maisonId) => {
-    if (window.confirm("Voulez-vous vraiment supprimer cette maison ?")) {
-      await deleteDoc(doc(db, "maisons", maisonId));
+    if (!window.confirm("Voulez-vous vraiment supprimer cette maison ?")) return;
+    try {
+      setSuppression(true);
       setSelected(null);
-      loadData();
+      setShowReview(false);
+      await deleteDoc(doc(db, "maisons", maisonId));
+      await loadData();
+    } catch (e) {
+      alert("Erreur lors de la suppression : " + e.message);
+    } finally {
+      setSuppression(false);
     }
   };
 
@@ -62,6 +74,26 @@ export default function MapPage({ setEcran }) {
 
   return (
     <div style={{ position: "relative", height: "100vh", width: "100%" }}>
+
+      {/* Message suppression en cours */}
+      {suppression && (
+        <div style={{
+          position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+          zIndex: 2000, display: "flex", alignItems: "center",
+          justifyContent: "center",
+          background: "rgba(255,255,255,0.7)"
+        }}>
+          <div style={{
+            background: "white", padding: "30px 40px", borderRadius: "16px",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.15)", textAlign: "center"
+          }}>
+            <p style={{ fontSize: "32px", margin: "0 0 10px" }}>🗑️</p>
+            <p style={{ color: "#dc2626", fontWeight: "bold", margin: 0 }}>
+              Suppression en cours...
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Barre de filtres */}
       <div style={{
@@ -143,7 +175,7 @@ export default function MapPage({ setEcran }) {
           <button onClick={() => setSelected(null)}
             style={{ float: "right", background: "none", border: "none",
               fontSize: "18px", cursor: "pointer", color: "#999" }}>
-            X
+            ✕
           </button>
 
           {selected.photo && (
