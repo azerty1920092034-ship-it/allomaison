@@ -62,7 +62,7 @@ export default function MapPage({ setEcran }) {
   };
 
   const handleQuitter = () => {
-    signOut(auth);
+    setEcran("choix");
   };
 
   const filtrees = maisons.filter((m) => {
