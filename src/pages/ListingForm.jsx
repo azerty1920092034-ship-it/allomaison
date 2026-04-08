@@ -2,6 +2,9 @@ import { useState } from "react";
 import { db, auth } from "../firebase";
 import { collection, addDoc } from "firebase/firestore";
 import { signOut } from "firebase/auth";
+import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 
 const CLOUDINARY_CLOUD = "dz3yafimu";
 const CLOUDINARY_PRESET = "allomaison_upload";
@@ -18,47 +21,97 @@ async function uploadToCloudinary(file, type) {
   return data.secure_url;
 }
 
+// Composant pour cliquer sur la mini-carte
+function PickerMarker({ onPick }) {
+  const markerIcon = L.divIcon({
+    className: "",
+    html: '<div style="width:20px;height:20px;background:#16a34a;border-radius:50%;border:3px solid white;box-shadow:0 0 8px #16a34a"></div>',
+    iconSize: [20, 20],
+    iconAnchor: [10, 10],
+  });
+
+  const [pos, setPos] = useState(null);
+  useMapEvents({
+    click(e) {
+      setPos(e.latlng);
+      onPick(e.latlng.lat, e.latlng.lng);
+    },
+  });
+  return pos ? <Marker position={pos} icon={markerIcon} /> : null;
+}
+
 export default function ListingForm({ onPublished }) {
   const [form, setForm] = useState({
-    nom: "", prenom: "", type: "Studio",
-    quartier: "Cotonou", description: "",
-    whatsapp: "", paiement: "Par mois",
-    lat: "", lng: ""
+    nom: "",
+    type: "Studio",
+    quartier: "Cotonou",
+    description: "",
+    whatsapp: "",
+    paiement: "Par mois",
+    prix: "",
+    lat: null,
+    lng: null,
   });
   const [photo, setPhoto] = useState(null);
-  const [video, setVideo] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState(null);
   const [loading, setLoading] = useState(false);
   const [succes, setSucces] = useState(false);
+  const [showMap, setShowMap] = useState(false);
+  const [coordsOk, setCoordsOk] = useState(false);
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = async () => {
-    const latVal = parseFloat(form.lat);
-    const lngVal = parseFloat(form.lng);
-    if (isNaN(latVal) || isNaN(lngVal)) {
-      alert("❌ Veuillez entrer des coordonnées GPS valides (Latitude et Longitude).");
-      return;
+  const handlePhoto = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setPhoto(file);
+      setPhotoPreview(URL.createObjectURL(file));
     }
+  };
+
+  const handlePick = (lat, lng) => {
+    setForm((f) => ({ ...f, lat, lng }));
+    setCoordsOk(true);
+  };
+
+  const handleGPS = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          handlePick(position.coords.latitude, position.coords.longitude);
+          setShowMap(true);
+        },
+        () => {
+          setShowMap(true);
+          alert("Activez la localisation ou pointez manuellement sur la carte !");
+        }
+      );
+    } else {
+      setShowMap(true);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!form.nom.trim()) return alert("❌ Entrez votre nom.");
+    if (!form.whatsapp.trim()) return alert("❌ Entrez votre numéro WhatsApp.");
+    if (!form.prix.trim()) return alert("❌ Entrez le prix.");
+    if (!photo) return alert("❌ Ajoutez une photo de la maison.");
+    if (!coordsOk) return alert("❌ Pointez votre maison sur la carte.");
+
     setLoading(true);
     try {
-      let photoURL = "";
-      let videoURL = "";
-      if (photo) photoURL = await uploadToCloudinary(photo, "image");
-      if (video) videoURL = await uploadToCloudinary(video, "video");
+      const photoURL = await uploadToCloudinary(photo, "image");
       await addDoc(collection(db, "maisons"), {
         ...form,
-        lat: parseFloat(form.lat),
-        lng: parseFloat(form.lng),
         photo: photoURL,
-        video: videoURL,
         proprietaireId: auth.currentUser.uid,
         disponible: true,
-        dateAjout: new Date()
+        dateAjout: new Date(),
       });
-     setSucces(true);
-setTimeout(() => onPublished(), 2000);
+      setSucces(true);
+      setTimeout(() => onPublished(), 2000);
     } catch (e) {
       alert("Erreur : " + e.message);
     }
@@ -109,92 +162,100 @@ setTimeout(() => onPublished(), 2000);
       <div style={{ background: "white", padding: "32px", borderRadius: "16px",
         width: "100%", maxWidth: "480px",
         boxShadow: "0 4px 20px rgba(0,0,0,0.1)", height: "fit-content" }}>
+
         <h2 style={{ color: "#16a34a", textAlign: "center", marginBottom: "24px" }}>
           🏡 Ajouter ma maison
         </h2>
 
-        {inp("Nom", "nom", "text", "Votre nom")}
-        {inp("Prénom", "prenom", "text", "Votre prénom")}
+        {inp("Votre nom complet", "nom", "text", "Ex: Koffi Jean")}
         {sel("Type de maison", "type", ["Studio", "Chambre salon", "Entrée couchée", "Maison entière"])}
         {sel("Quartier", "quartier", ["Cotonou", "Godomey", "Cocotomey", "Abomey-Calavi"])}
 
         <div style={{ marginBottom: "12px" }}>
-          <p style={{ margin: "0 0 4px", fontSize: "13px", color: "#555" }}>Description</p><textarea name="description" value={form.description}
+          <p style={{ margin: "0 0 4px", fontSize: "13px", color: "#555" }}>Description</p>
+          <textarea name="description" value={form.description}
             onChange={handleChange} rows={3}
-            placeholder="Décrivez votre maison..."
+            placeholder="Décrivez votre maison (propre, calme, eau courante...)"
             style={{ width: "100%", padding: "10px", border: "1px solid #ddd",
               borderRadius: "8px", fontSize: "14px", boxSizing: "border-box" }} />
         </div>
 
         {inp("Numéro WhatsApp", "whatsapp", "text", "Ex: 22967000000")}
-        {sel("Mode de paiement", "paiement", ["Par nuit", "Par mois", "Par année"])}
-<div style={{ marginBottom: "16px", background: "#f0fdf4", 
-  borderRadius: "10px", padding: "12px", border: "1px solid #bbf7d0" }}>
-  <p style={{ margin: "0 0 8px", fontSize: "13px", fontWeight: "bold", color: "#16a34a" }}>
-    📍 Coordonnées GPS de la maison
-  </p>
-  <p style={{ margin: "0 0 10px", fontSize: "12px", color: "#555" }}>
-    Pour trouver vos coordonnées : ouvrez <strong>Google Maps</strong>, 
-    trouvez votre maison, faites un <strong>clic droit</strong> dessus 
-    et copiez les deux chiffres qui apparaissent.
-  </p>
-  <button
-  onClick={() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const lat = position.coords.latitude;
-          const lng = position.coords.longitude;
-          setForm(f => ({ ...f, lat: lat.toFixed(6), lng: lng.toFixed(6) }));
-          window.open(
-            "https://www.google.com/maps?q=" + lat + "," + lng,
-            "_blank"
-          );
-        },
-        () => {
-          window.open("https://maps.google.com", "_blank");
-          alert("Activez la localisation sur votre téléphone !");
-        }
-      );
-    } else {
-      window.open("https://maps.google.com", "_blank");
-    }
-  }}
-  style={{ display: "inline-block", marginBottom: "12px", padding: "6px 12px",
-    background: "#16a34a", color: "white", borderRadius: "8px",
-    border: "none", fontSize: "12px", cursor: "pointer" }}>
-  📍 Utiliser ma position actuelle
-</button>
-  <div style={{ display: "flex", gap: "10px" }}>
-    <div style={{ flex: 1 }}>
-      <p style={{ margin: "0 0 4px", fontSize: "13px", color: "#555" }}>Latitude</p>
-      <input type="text" name="lat" placeholder="Ex: 6.3654"
-        value={form.lat} onChange={handleChange}
-        style={{ width: "100%", padding: "10px", border: "1px solid #ddd",
-          borderRadius: "8px", fontSize: "14px", boxSizing: "border-box" }} />
-    </div>
-    <div style={{ flex: 1 }}>
-      <p style={{ margin: "0 0 4px", fontSize: "13px", color: "#555" }}>Longitude</p>
-      <input type="text" name="lng" placeholder="Ex: 2.4183"
-        value={form.lng} onChange={handleChange}
-        style={{ width: "100%", padding: "10px", border: "1px solid #ddd",
-          borderRadius: "8px", fontSize: "14px", boxSizing: "border-box" }} />
-    </div>
-  </div>
-</div>
 
-        <div style={{ marginBottom: "12px" }}>
-          <p style={{ margin: "0 0 4px", fontSize: "13px", color: "#555" }}>Photo de la devanture</p>
-          <input type="file" accept="image/*"
-            onChange={(e) => setPhoto(e.target.files[0])}
-            style={{ fontSize: "13px" }} />
+        <div style={{ display: "flex", gap: "10px", marginBottom: "12px" }}>
+          <div style={{ flex: 1 }}>
+            {sel("Paiement", "paiement", ["Par nuit", "Par mois", "Par année"])}
+          </div>
+          <div style={{ flex: 1 }}>
+            <p style={{ margin: "0 0 4px", fontSize: "13px", color: "#555" }}>Prix (FCFA)</p>
+            <input type="number" name="prix" placeholder="Ex: 50000"
+              value={form.prix} onChange={handleChange}
+              style={{ width: "100%", padding: "10px", border: "1px solid #ddd",
+                borderRadius: "8px", fontSize: "14px", boxSizing: "border-box" }} />
+          </div>
         </div>
 
-        <div style={{ marginBottom: "24px" }}>
-          <p style={{ margin: "0 0 4px", fontSize: "13px", color: "#555" }}>Video de la devanture</p>
-          <input type="file" accept="video/*"
-            onChange={(e) => setVideo(e.target.files[0])}
+        {/* Photo obligatoire */}
+        <div style={{ marginBottom: "16px" }}>
+          <p style={{ margin: "0 0 4px", fontSize: "13px", color: "#555" }}>
+            📸 Photo de la maison <span style={{ color: "#dc2626" }}>*</span>
+          </p>
+          <input type="file" accept="image/*" onChange={handlePhoto}
             style={{ fontSize: "13px" }} />
+          {photoPreview && (
+            <img src={photoPreview} alt="preview"
+              style={{ width: "100%", borderRadius: "10px", marginTop: "10px",
+                maxHeight: "180px", objectFit: "cover" }} />
+          )}
+        </div>
+
+        {/* GPS / Mini-carte */}
+        <div style={{ marginBottom: "20px", background: "#f0fdf4",
+          borderRadius: "10px", padding: "12px", border: "1px solid #bbf7d0" }}>
+          <p style={{ margin: "0 0 8px", fontSize: "13px", fontWeight: "bold", color: "#16a34a" }}>
+            📍 Localisation de la maison <span style={{ color: "#dc2626" }}>*</span>
+          </p>
+
+          {coordsOk ? (
+            <div style={{ display: "flex", alignItems: "center", gap: "8px",
+              marginBottom: "10px", color: "#16a34a", fontSize: "13px" }}>
+              ✅ Position enregistrée !
+              <button onClick={() => { setCoordsOk(false); setShowMap(true); }}
+                style={{ fontSize: "11px", padding: "3px 8px", background: "none",
+                  border: "1px solid #16a34a", borderRadius: "6px",
+                  color: "#16a34a", cursor: "pointer" }}>
+                Modifier
+              </button>
+            </div>
+          ) : (
+            <p style={{ margin: "0 0 10px", fontSize: "12px", color: "#555" }}>
+              Appuyez sur le bouton puis touchez votre maison sur la carte.
+            </p>
+          )}
+
+          <button onClick={handleGPS}
+            style={{ width: "100%", padding: "10px", background: "#16a34a",
+              color: "white", border: "none", borderRadius: "8px",
+              fontSize: "13px", cursor: "pointer", marginBottom: "10px" }}>
+            📍 {coordsOk ? "Repositionner ma maison" : "Pointer ma maison sur la carte"}
+          </button>
+
+          {showMap && (
+            <div style={{ borderRadius: "10px", overflow: "hidden", height: "220px" }}>
+              <MapContainer
+                center={form.lat ? [form.lat, form.lng] : [6.3654, 2.4183]}
+                zoom={15}
+                style={{ height: "100%", width: "100%" }}
+              >
+                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                <PickerMarker onPick={handlePick} />
+              </MapContainer>
+              <p style={{ fontSize: "11px", color: "#888", margin: "4px 0 0",
+                textAlign: "center" }}>
+                Touchez exactement l'emplacement de votre maison
+              </p>
+            </div>
+          )}
         </div>
 
         <button onClick={handleSubmit} disabled={loading}
@@ -202,13 +263,13 @@ setTimeout(() => onPublished(), 2000);
             background: loading ? "#86efac" : "#16a34a",
             color: "white", border: "none", borderRadius: "10px",
             fontSize: "16px", cursor: loading ? "not-allowed" : "pointer" }}>
-          {loading ? "Envoi en cours..." : "Publier ma maison"}
+          {loading ? "Envoi en cours..." : "Publier ma maison 🏡"}
         </button>
 
         <p onClick={() => signOut(auth)}
           style={{ textAlign: "center", marginTop: "16px", color: "#999",
             cursor: "pointer", fontSize: "13px" }}>
-          Se deconnecter
+          Se déconnecter
         </p>
       </div>
     </div>
