@@ -95,6 +95,10 @@ export default function ListingForm({ onPublished }) {
   const [manualLat, setManualLat]       = useState("");
   const [manualLng, setManualLng]       = useState("");
   const [accuracy, setAccuracy]         = useState(null); // précision GPS en mètres
+  const [gpsError, setGpsError]         = useState(null); // erreur GPS inline
+  const [adresseError, setAdresseError] = useState(null); // erreur recherche adresse inline
+  const [manuelError, setManuelError]   = useState(null); // erreur coords manuelles inline
+  const [formErrors, setFormErrors]     = useState({});   // erreurs formulaire inline
 
   // ── Handlers génériques ─────────────────────────────────────────────────────
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
@@ -124,21 +128,41 @@ export default function ListingForm({ onPublished }) {
 
   // ── GPS ──────────────────────────────────────────────────────────────────
   const handleGPS = () => {
+    setGpsError(null);
     if (!navigator.geolocation) {
       setShowMap(true);
+      setGpsError("⚠️ La géolocalisation n'est pas supportée par votre navigateur. Utilisez une autre méthode.");
       return;
     }
     setGpsLoading(true);
     setShowMap(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        handlePick(pos.coords.latitude, pos.coords.longitude);
-        setAccuracy(Math.round(pos.coords.accuracy));
+        const acc = Math.round(pos.coords.accuracy);
+        setAccuracy(acc);
         setGpsLoading(false);
+        // Recentre toujours la carte sur la position GPS
+        setForm((f) => ({ ...f, lat: pos.coords.latitude, lng: pos.coords.longitude }));
+        if (acc <= 500) {
+          // Bonne précision → validation automatique
+          setCoordsOk(true);
+          setGpsError(null);
+        } else {
+          // Précision trop faible (PC/WiFi) → recentre mais NE valide PAS
+          // L'utilisateur doit cliquer sur la carte pour confirmer
+          setCoordsOk(false);
+          setGpsError(
+            `📍 Position approximative (~${acc} m). Cliquez sur la carte pour placer le point exactement sur votre maison.`
+          );
+        }
       },
-      () => {
+      (err) => {
         setGpsLoading(false);
-        alert("⚠️ Impossible d'obtenir votre position. Activez la localisation ou choisissez une autre méthode.");
+        setGpsError(
+          err.code === 1
+            ? "🔒 Permission refusée. Autorisez la localisation dans les paramètres de votre navigateur, ou choisissez une autre méthode ci-dessous."
+            : "📡 Position introuvable. Vérifiez que la localisation est activée ou utilisez une autre méthode ci-dessous."
+        );
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
@@ -146,7 +170,11 @@ export default function ListingForm({ onPublished }) {
 
   // ── Recherche par adresse (Nominatim) ────────────────────────────────────
   const handleRechercheAdresse = async () => {
-    if (!adresse.trim()) return alert("Entrez une adresse !");
+    setAdresseError(null);
+    if (!adresse.trim()) {
+      setAdresseError("⚠️ Entrez un nom de lieu avant de rechercher.");
+      return;
+    }
     setRechercheAdresse(true);
     try {
       const url =
@@ -160,21 +188,24 @@ export default function ListingForm({ onPublished }) {
         handlePick(parseFloat(data[0].lat), parseFloat(data[0].lon));
         setShowMap(true);
         setLocMethod(null);
+        setAdresseError(null);
       } else {
-        alert("❌ Adresse introuvable. Essayez un carrefour, un marché, ou une école à proximité.");
+        setAdresseError("❌ Lieu introuvable. Essayez un carrefour, un marché ou une école à proximité.");
       }
     } catch {
-      alert("Erreur réseau. Vérifiez votre connexion.");
+      setAdresseError("❌ Erreur réseau. Vérifiez votre connexion et réessayez.");
     }
     setRechercheAdresse(false);
   };
 
   // ── Coordonnées manuelles ─────────────────────────────────────────────────
   const handleManuelValider = () => {
+    setManuelError(null);
     const lat = parseFloat(manualLat.replace(",", "."));
     const lng = parseFloat(manualLng.replace(",", "."));
     if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-      return alert("❌ Coordonnées invalides.\nExemple : Latitude 6.3654 / Longitude 2.4183");
+      setManuelError("❌ Coordonnées invalides. Exemple : Latitude 6.3654 / Longitude 2.4183");
+      return;
     }
     handlePick(lat, lng);
     setShowMap(true);
@@ -183,13 +214,18 @@ export default function ListingForm({ onPublished }) {
 
   // ── Validation et envoi ───────────────────────────────────────────────────
   const handleSubmit = async () => {
-    if (!form.nom.trim())     return alert("❌ Entrez votre nom.");
-    if (!/^\d{8,15}$/.test(form.whatsapp.trim()))
-      return alert("❌ Numéro WhatsApp invalide (8 à 15 chiffres sans espaces).");
-    if (!form.prix.trim())    return alert("❌ Entrez le prix.");
-    if (!photo)               return alert("❌ Ajoutez une photo de la maison.");
-    if (!coordsOk)            return alert("❌ Localisez votre maison sur la carte.");
-
+    const errors = {};
+    if (!form.nom.trim()) errors.nom = "❌ Entrez votre nom.";
+    if (!/^\d{8,15}$/.test(form.whatsapp.trim())) errors.whatsapp = "❌ Numéro invalide (8 à 15 chiffres, sans espaces).";
+    if (!form.prix.trim()) errors.prix = "❌ Entrez le prix.";
+    if (!photo) errors.photo = "❌ Ajoutez une photo de la maison.";
+    if (!coordsOk) errors.loc = "❌ Localisez votre maison sur la carte.";
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      // Scroll vers le premier champ en erreur
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
     setLoading(true);
     try {
       const photoURL = await uploadToCloudinary(photo, "image");
@@ -356,14 +392,25 @@ export default function ListingForm({ onPublished }) {
 
           {/* ── Bouton GPS principal ── */}
           {!coordsOk && (
-            <button onClick={handleGPS} disabled={gpsLoading}
-              style={{ width: "100%", padding: "10px",
-                background: gpsLoading ? "#86efac" : "#16a34a",
-                color: "white", border: "none", borderRadius: "8px",
-                fontSize: "13px", cursor: gpsLoading ? "not-allowed" : "pointer",
-                marginBottom: "8px" }}>
-              {gpsLoading ? "📡 Recherche de votre position..." : "📍 Utiliser ma position GPS"}
-            </button>
+            <>
+              <button onClick={handleGPS} disabled={gpsLoading}
+                style={{ width: "100%", padding: "10px",
+                  background: gpsLoading ? "#86efac" : "#16a34a",
+                  color: "white", border: "none", borderRadius: "8px",
+                  fontSize: "13px", cursor: gpsLoading ? "not-allowed" : "pointer",
+                  marginBottom: "8px" }}>
+                {gpsLoading ? "📡 Recherche de votre position..." : "📍 Utiliser ma position GPS"}
+              </button>
+
+              {/* Erreur GPS inline — plus d'alert() ! */}
+              {gpsError && (
+                <div style={{ background: "#fef2f2", border: "1px solid #fecaca",
+                  borderRadius: "8px", padding: "10px", marginBottom: "8px",
+                  fontSize: "12px", color: "#dc2626", lineHeight: "1.6" }}>
+                  {gpsError}
+                </div>
+              )}
+            </>
           )}
 
           {/* ── Mini carte Leaflet ── */}
@@ -397,21 +444,26 @@ export default function ListingForm({ onPublished }) {
 
           {/* ── Options de secours ── */}
           {!coordsOk && (
-            <p style={{ fontSize: "12px", color: "#888", textAlign: "center",
-              margin: "8px 0 0" }}>
-              Vous ne trouvez pas votre maison ?{" "}
-              <span
-                onClick={() => setLocMethod(locMethod === "adresse" ? null : "adresse")}
-                style={{ color: "#16a34a", cursor: "pointer", textDecoration: "underline" }}>
-                Chercher par adresse
-              </span>
-              {" "}ou{" "}
-              <span
-                onClick={() => setLocMethod(locMethod === "manuel" ? null : "manuel")}
-                style={{ color: "#16a34a", cursor: "pointer", textDecoration: "underline" }}>
-                entrer les coordonnées
-              </span>
-            </p>
+            <div style={{ position: "relative", zIndex: 1000, marginTop: "8px" }}>
+              <p style={{ fontSize: "12px", color: "#888", textAlign: "center", margin: 0 }}>
+                Vous ne trouvez pas votre maison ?{" "}
+                <button
+                  onClick={() => setLocMethod(locMethod === "adresse" ? null : "adresse")}
+                  style={{ color: "#16a34a", cursor: "pointer", textDecoration: "underline",
+                    background: "none", border: "none", padding: 0,
+                    fontSize: "12px", fontFamily: "inherit" }}>
+                  Chercher par adresse
+                </button>
+                {" "}ou{" "}
+                <button
+                  onClick={() => setLocMethod(locMethod === "manuel" ? null : "manuel")}
+                  style={{ color: "#16a34a", cursor: "pointer", textDecoration: "underline",
+                    background: "none", border: "none", padding: 0,
+                    fontSize: "12px", fontFamily: "inherit" }}>
+                  entrer les coordonnées
+                </button>
+              </p>
+            </div>
           )}
 
           {/* ── Option 1 : Recherche par adresse ── */}
@@ -437,6 +489,15 @@ export default function ListingForm({ onPublished }) {
                   fontSize: "13px", cursor: rechercheAdresse ? "not-allowed" : "pointer" }}>
                 {rechercheAdresse ? "Recherche en cours..." : "🔍 Trouver sur la carte"}
               </button>
+
+              {/* Erreur recherche adresse inline */}
+              {adresseError && (
+                <div style={{ background: "#fef2f2", border: "1px solid #fecaca",
+                  borderRadius: "8px", padding: "10px", marginTop: "8px",
+                  fontSize: "12px", color: "#dc2626", lineHeight: "1.6" }}>
+                  {adresseError}
+                </div>
+              )}
             </div>
           )}
 
@@ -468,6 +529,15 @@ export default function ListingForm({ onPublished }) {
                   fontSize: "13px", cursor: "pointer" }}>
                 ✅ Valider les coordonnées
               </button>
+
+              {/* Erreur coordonnées manuelles inline */}
+              {manuelError && (
+                <div style={{ background: "#fef2f2", border: "1px solid #fecaca",
+                  borderRadius: "8px", padding: "10px", marginTop: "8px",
+                  fontSize: "12px", color: "#dc2626", lineHeight: "1.6" }}>
+                  {manuelError}
+                </div>
+              )}
             </div>
           )}
         </div>
