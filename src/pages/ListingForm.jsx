@@ -21,16 +21,14 @@ async function uploadToCloudinary(file, type) {
   return data.secure_url;
 }
 
-// Composant pour cliquer sur la mini-carte
-function PickerMarker({ onPick }) {
+function PickerMarker({ onPick, initialPos }) {
   const markerIcon = L.divIcon({
     className: "",
     html: '<div style="width:20px;height:20px;background:#16a34a;border-radius:50%;border:3px solid white;box-shadow:0 0 8px #16a34a"></div>',
     iconSize: [20, 20],
     iconAnchor: [10, 10],
   });
-
-  const [pos, setPos] = useState(null);
+  const [pos, setPos] = useState(initialPos || null);
   useMapEvents({
     click(e) {
       setPos(e.latlng);
@@ -42,15 +40,9 @@ function PickerMarker({ onPick }) {
 
 export default function ListingForm({ onPublished }) {
   const [form, setForm] = useState({
-    nom: "",
-    type: "Studio",
-    quartier: "Cotonou",
-    description: "",
-    whatsapp: "",
-    paiement: "Par mois",
-    prix: "",
-    lat: null,
-    lng: null,
+    nom: "", type: "Studio", quartier: "Cotonou",
+    description: "", whatsapp: "", paiement: "Par mois",
+    prix: "", lat: null, lng: null,
   });
   const [photo, setPhoto] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
@@ -58,10 +50,13 @@ export default function ListingForm({ onPublished }) {
   const [succes, setSucces] = useState(false);
   const [showMap, setShowMap] = useState(false);
   const [coordsOk, setCoordsOk] = useState(false);
+  const [secours, setSecours] = useState(null); // "adresse" | "manuel"
+  const [adresse, setAdresse] = useState("");
+  const [rechercheAdresse, setRechercheAdresse] = useState(false);
+  const [manualLat, setManualLat] = useState("");
+  const [manualLng, setManualLng] = useState("");
 
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
+  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
   const handlePhoto = (e) => {
     const file = e.target.files[0];
@@ -93,13 +88,50 @@ export default function ListingForm({ onPublished }) {
     }
   };
 
+  // Recherche adresse via OpenStreetMap Nominatim (gratuit)
+  const handleRechercheAdresse = async () => {
+    if (!adresse.trim()) return alert("Entrez une adresse !");
+    setRechercheAdresse(true);
+    try {
+      const res = await fetch(
+        "https://nominatim.openstreetmap.org/search?format=json&q=" +
+        encodeURIComponent(adresse + ", Bénin") +
+        "&limit=1"
+      );
+      const data = await res.json();
+      if (data.length > 0) {
+        const lat = parseFloat(data[0].lat);
+        const lng = parseFloat(data[0].lon);
+        handlePick(lat, lng);
+        setShowMap(true);
+        setSecours(null);
+      } else {
+        alert("❌ Adresse introuvable. Essayez d'être plus précis ou utilisez les coordonnées manuelles.");
+      }
+    } catch {
+      alert("Erreur de recherche. Vérifiez votre connexion.");
+    }
+    setRechercheAdresse(false);
+  };
+
+  // Validation coordonnées manuelles
+  const handleManuelValider = () => {
+    const lat = parseFloat(manualLat);
+    const lng = parseFloat(manualLng);
+    if (isNaN(lat) || isNaN(lng)) {
+      return alert("❌ Coordonnées invalides. Ex: Latitude 6.3654 / Longitude 2.4183");
+    }
+    handlePick(lat, lng);
+    setShowMap(true);
+    setSecours(null);
+  };
+
   const handleSubmit = async () => {
     if (!form.nom.trim()) return alert("❌ Entrez votre nom.");
     if (!form.whatsapp.trim()) return alert("❌ Entrez votre numéro WhatsApp.");
     if (!form.prix.trim()) return alert("❌ Entrez le prix.");
     if (!photo) return alert("❌ Ajoutez une photo de la maison.");
-    if (!coordsOk) return alert("❌ Pointez votre maison sur la carte.");
-
+    if (!coordsOk) return alert("❌ Localisez votre maison.");
     setLoading(true);
     try {
       const photoURL = await uploadToCloudinary(photo, "image");
@@ -209,51 +241,120 @@ export default function ListingForm({ onPublished }) {
           )}
         </div>
 
-        {/* GPS / Mini-carte */}
+        {/* Bloc localisation */}
         <div style={{ marginBottom: "20px", background: "#f0fdf4",
           borderRadius: "10px", padding: "12px", border: "1px solid #bbf7d0" }}>
           <p style={{ margin: "0 0 8px", fontSize: "13px", fontWeight: "bold", color: "#16a34a" }}>
             📍 Localisation de la maison <span style={{ color: "#dc2626" }}>*</span>
           </p>
 
-          {coordsOk ? (
+          {coordsOk && (
             <div style={{ display: "flex", alignItems: "center", gap: "8px",
               marginBottom: "10px", color: "#16a34a", fontSize: "13px" }}>
               ✅ Position enregistrée !
-              <button onClick={() => { setCoordsOk(false); setShowMap(true); }}
+              <button onClick={() => { setCoordsOk(false); setShowMap(false); setSecours(null); }}
                 style={{ fontSize: "11px", padding: "3px 8px", background: "none",
                   border: "1px solid #16a34a", borderRadius: "6px",
                   color: "#16a34a", cursor: "pointer" }}>
                 Modifier
               </button>
             </div>
-          ) : (
-            <p style={{ margin: "0 0 10px", fontSize: "12px", color: "#555" }}>
-              Appuyez sur le bouton puis touchez votre maison sur la carte.
-            </p>
           )}
 
-          <button onClick={handleGPS}
-            style={{ width: "100%", padding: "10px", background: "#16a34a",
-              color: "white", border: "none", borderRadius: "8px",
-              fontSize: "13px", cursor: "pointer", marginBottom: "10px" }}>
-            📍 {coordsOk ? "Repositionner ma maison" : "Pointer ma maison sur la carte"}
-          </button>
+          {/* Bouton principal GPS */}
+          {!coordsOk && (
+            <button onClick={handleGPS}
+              style={{ width: "100%", padding: "10px", background: "#16a34a",
+                color: "white", border: "none", borderRadius: "8px",
+                fontSize: "13px", cursor: "pointer", marginBottom: "8px" }}>
+              📍 Utiliser ma position GPS
+            </button>
+          )}
 
+          {/* Mini carte */}
           {showMap && (
-            <div style={{ borderRadius: "10px", overflow: "hidden", height: "220px" }}>
+            <div style={{ borderRadius: "10px", overflow: "hidden",
+              height: "220px", marginBottom: "8px" }}>
               <MapContainer
                 center={form.lat ? [form.lat, form.lng] : [6.3654, 2.4183]}
                 zoom={15}
                 style={{ height: "100%", width: "100%" }}
               >
                 <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                <PickerMarker onPick={handlePick} />
+                <PickerMarker
+                  onPick={handlePick}
+                  initialPos={form.lat ? { lat: form.lat, lng: form.lng } : null}
+                />
               </MapContainer>
               <p style={{ fontSize: "11px", color: "#888", margin: "4px 0 0",
                 textAlign: "center" }}>
-                Touchez exactement l'emplacement de votre maison
+                👆 Touchez exactement l'emplacement de votre maison
               </p>
+            </div>
+          )}
+
+          {/* Lien options de secours */}
+          {!coordsOk && (
+            <p style={{ fontSize: "12px", color: "#888", textAlign: "center",
+              margin: "8px 0 0" }}>
+              Vous ne trouvez pas votre maison ?{" "}
+              <span onClick={() => setSecours(secours === "adresse" ? null : "adresse")}
+                style={{ color: "#16a34a", cursor: "pointer", textDecoration: "underline" }}>
+                Chercher par adresse
+              </span>
+              {" "}ou{" "}
+              <span onClick={() => setSecours(secours === "manuel" ? null : "manuel")}
+                style={{ color: "#16a34a", cursor: "pointer", textDecoration: "underline" }}>
+                entrer les coordonnées
+              </span>
+            </p>
+          )}
+
+          {/* Option 1 : Recherche par adresse */}
+          {secours === "adresse" && (
+            <div style={{ marginTop: "10px", padding: "10px", background: "white",
+              borderRadius: "8px", border: "1px solid #ddd" }}>
+              <p style={{ margin: "0 0 6px", fontSize: "12px", color: "#555" }}>
+                Entrez un point de repère connu (carrefour, marché, école...)
+              </p>
+              <input type="text" placeholder="Ex: Carrefour Godomey, Cotonou"
+                value={adresse} onChange={(e) => setAdresse(e.target.value)}
+                style={{ width: "100%", padding: "8px", border: "1px solid #ddd",
+                  borderRadius: "8px", fontSize: "13px", boxSizing: "border-box",
+                  marginBottom: "8px" }} />
+              <button onClick={handleRechercheAdresse} disabled={rechercheAdresse}
+                style={{ width: "100%", padding: "8px", background: "#0284c7",
+                  color: "white", border: "none", borderRadius: "8px",
+                  fontSize: "13px", cursor: "pointer" }}>
+                {rechercheAdresse ? "Recherche en cours..." : "🔍 Trouver sur la carte"}
+              </button>
+            </div>
+          )}
+
+          {/* Option 2 : Coordonnées manuelles */}
+          {secours === "manuel" && (
+            <div style={{ marginTop: "10px", padding: "10px", background: "white",
+              borderRadius: "8px", border: "1px solid #ddd" }}>
+              <p style={{ margin: "0 0 6px", fontSize: "12px", color: "#555" }}>
+                Ouvrez <strong>Google Maps</strong>, maintenez le doigt sur votre maison,
+                puis copiez les 2 chiffres qui apparaissent.
+              </p>
+              <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+                <input type="text" placeholder="Latitude (Ex: 6.3654)"
+                  value={manualLat} onChange={(e) => setManualLat(e.target.value)}
+                  style={{ flex: 1, padding: "8px", border: "1px solid #ddd",
+                    borderRadius: "8px", fontSize: "13px" }} />
+                <input type="text" placeholder="Longitude (Ex: 2.4183)"
+                  value={manualLng} onChange={(e) => setManualLng(e.target.value)}
+                  style={{ flex: 1, padding: "8px", border: "1px solid #ddd",
+                    borderRadius: "8px", fontSize: "13px" }} />
+              </div>
+              <button onClick={handleManuelValider}
+                style={{ width: "100%", padding: "8px", background: "#7c3aed",
+                  color: "white", border: "none", borderRadius: "8px",
+                  fontSize: "13px", cursor: "pointer" }}>
+                ✅ Valider les coordonnées
+              </button>
             </div>
           )}
         </div>
