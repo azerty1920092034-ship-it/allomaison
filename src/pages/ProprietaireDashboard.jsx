@@ -13,21 +13,61 @@ export default function ProprietaireDashboard() {
     const uid = auth.currentUser?.uid;
     if (!uid) return;
 
-    // Profil
+    let unsubMaisons = null;
+
+    // 1. Charge le profil pour récupérer le numéro WhatsApp
     getDoc(doc(db, "users", uid)).then((snap) => {
-      if (snap.exists()) setProfil(snap.data());
+      if (!snap.exists()) { setLoading(false); return; }
+      const data = snap.data();
+      setProfil(data);
+
+      const wp = data.whatsapp || "";
+
+      // 2. Double requête :
+      //    - maisons publiées par l'admin et liées à ce uid
+      //    - maisons publiées avec ce numéro WhatsApp (avant création du compte)
+      //    On fusionne les deux sans doublon.
+
+      let parId  = [];
+      let parWp  = [];
+      let reçuId = false;
+      let reçuWp = false;
+
+      const fusionner = () => {
+        if (!reçuId || !reçuWp) return;
+        const tous = [...parId];
+        parWp.forEach((m) => {
+          if (!tous.find((x) => x.id === m.id)) tous.push(m);
+        });
+        setMaisons(tous);
+        setLoading(false);
+      };
+
+      // Requête 1 : par proprietaireId
+      const q1 = query(collection(db, "maisons"), where("proprietaireId", "==", uid));
+      const unsub1 = onSnapshot(q1, (snap) => {
+        parId = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        reçuId = true;
+        fusionner();
+      });
+
+      // Requête 2 : par numéro WhatsApp (maisons publiées avant inscription)
+      let unsub2 = () => {};
+      if (wp) {
+        const q2 = query(collection(db, "maisons"), where("whatsapp", "==", wp));
+        unsub2 = onSnapshot(q2, (snap) => {
+          parWp = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          reçuWp = true;
+          fusionner();
+        });
+      } else {
+        reçuWp = true; // pas de WhatsApp → on ignore cette requête
+      }
+
+      unsubMaisons = () => { unsub1(); unsub2(); };
     });
 
-    // Maisons liées à ce propriétaire
-    const q = query(
-      collection(db, "maisons"),
-      where("proprietaireId", "==", uid)
-    );
-    const unsub = onSnapshot(q, (snap) => {
-      setMaisons(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      setLoading(false);
-    });
-    return () => unsub();
+    return () => { if (unsubMaisons) unsubMaisons(); };
   }, []);
 
   const statutBadge = (maison) => {
