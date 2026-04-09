@@ -214,23 +214,39 @@ export default function ListingForm({ onPublished }) {
 
   // ── Validation et envoi ───────────────────────────────────────────────────
   const handleSubmit = async () => {
+    setFormErrors({});
     const errors = {};
-    if (!form.nom.trim()) errors.nom = "❌ Entrez votre nom.";
-    if (!/^\d{8,15}$/.test(form.whatsapp.trim())) errors.whatsapp = "❌ Numéro invalide (8 à 15 chiffres, sans espaces).";
-    if (!form.prix.trim()) errors.prix = "❌ Entrez le prix.";
-    if (!photo) errors.photo = "❌ Ajoutez une photo de la maison.";
-    if (!coordsOk) errors.loc = "❌ Localisez votre maison sur la carte.";
+
+    if (!form.nom.trim())
+      errors.nom = "❌ Entrez votre nom complet.";
+
+    // Nettoie le numéro : supprime +, espaces, tirets avant de valider
+    const whatsappClean = form.whatsapp.replace(/[\s\-\+]/g, "");
+    if (!/^\d{8,15}$/.test(whatsappClean))
+      errors.whatsapp = "❌ Numéro invalide. Ex: 22967000000 (sans espaces ni +).";
+
+    // prix peut être number ou string selon le navigateur
+    if (!String(form.prix).trim() || Number(form.prix) <= 0)
+      errors.prix = "❌ Entrez un prix valide.";
+
+    if (!photo)
+      errors.photo = "❌ Ajoutez une photo de la maison.";
+
+    if (!coordsOk)
+      errors.loc = "❌ Localisez votre maison sur la carte.";
+
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
-      // Scroll vers le premier champ en erreur
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
+
     setLoading(true);
     try {
       const photoURL = await uploadToCloudinary(photo, "image");
       await addDoc(collection(db, "maisons"), {
         ...form,
+        whatsapp: whatsappClean, // stocke le numéro nettoyé
         photo: photoURL,
         proprietaireId: auth.currentUser.uid,
         disponible: true,
@@ -239,21 +255,26 @@ export default function ListingForm({ onPublished }) {
       setSucces(true);
       setTimeout(() => onPublished(), 2000);
     } catch (e) {
-      alert("Erreur : " + e.message);
+      setFormErrors({ global: "❌ Erreur lors de la publication : " + e.message });
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
     setLoading(false);
   };
 
   // ── Helpers de rendu ──────────────────────────────────────────────────────
+  const errStyle = { fontSize: "12px", color: "#dc2626", margin: "4px 0 0" };
   const inp = (label, name, type, placeholder) => (
     <div style={{ marginBottom: "12px" }}>
       <p style={{ margin: "0 0 4px", fontSize: "13px", color: "#555" }}>{label}</p>
       <input
         type={type} name={name} placeholder={placeholder}
-        value={form[name]} onChange={handleChange}
-        style={{ width: "100%", padding: "10px", border: "1px solid #ddd",
+        value={form[name]}
+        onChange={(e) => { handleChange(e); setFormErrors((fe) => ({ ...fe, [name]: null })); }}
+        style={{ width: "100%", padding: "10px",
+          border: formErrors[name] ? "1px solid #dc2626" : "1px solid #ddd",
           borderRadius: "8px", fontSize: "14px", boxSizing: "border-box" }}
       />
+      {formErrors[name] && <p style={errStyle}>{formErrors[name]}</p>}
     </div>
   );
 
@@ -339,6 +360,7 @@ export default function ListingForm({ onPublished }) {
               style={{ width: "100%", borderRadius: "10px", marginTop: "10px",
                 maxHeight: "180px", objectFit: "cover" }} />
           )}
+          {formErrors.photo && <p style={{ fontSize: "12px", color: "#dc2626", margin: "4px 0 0" }}>{formErrors.photo}</p>}
         </div>
 
         {/* ── BLOC LOCALISATION ────────────────────────────────────────────── */}
@@ -543,12 +565,21 @@ export default function ListingForm({ onPublished }) {
         </div>
         {/* ── FIN BLOC LOCALISATION ─────────────────────────────────────────── */}
 
+        {/* Erreur globale (Firebase, Cloudinary...) */}
+        {formErrors.global && (
+          <div style={{ background: "#fef2f2", border: "1px solid #fecaca",
+            borderRadius: "8px", padding: "12px", marginBottom: "12px",
+            fontSize: "13px", color: "#dc2626", lineHeight: "1.6" }}>
+            {formErrors.global}
+          </div>
+        )}
+
         <button onClick={handleSubmit} disabled={loading}
           style={{ width: "100%", padding: "14px",
             background: loading ? "#86efac" : "#16a34a",
             color: "white", border: "none", borderRadius: "10px",
             fontSize: "16px", cursor: loading ? "not-allowed" : "pointer" }}>
-          {loading ? "Envoi en cours..." : "Publier ma maison 🏡"}
+          {loading ? "⏳ Envoi en cours..." : "Publier ma maison 🏡"}
         </button>
 
         <p onClick={() => signOut(auth)}
