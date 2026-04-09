@@ -229,9 +229,6 @@ export default function ListingForm({ onPublished }) {
     if (!String(form.prix).trim() || Number(form.prix) <= 0)
       errors.prix = "❌ Entrez un prix valide.";
 
-    if (!photo)
-      errors.photo = "❌ Ajoutez une photo de la maison.";
-
     if (!coordsOk)
       errors.loc = "❌ Localisez votre maison sur la carte.";
 
@@ -243,7 +240,7 @@ export default function ListingForm({ onPublished }) {
 
     setLoading(true);
     try {
-      const photoURL = await uploadToCloudinary(photo, "image");
+      const photoURL = photo ? await uploadToCloudinary(photo, "image") : null;
       await addDoc(collection(db, "maisons"), {
         ...form,
         whatsapp: whatsappClean, // stocke le numéro nettoyé
@@ -351,7 +348,7 @@ export default function ListingForm({ onPublished }) {
         {/* Photo */}
         <div style={{ marginBottom: "16px" }}>
           <p style={{ margin: "0 0 4px", fontSize: "13px", color: "#555" }}>
-            📸 Photo de la maison <span style={{ color: "#dc2626" }}>*</span>
+            📸 Photo de la maison <span style={{ color: "#888", fontSize: "11px" }}>(facultatif)</span>
           </p>
           <input type="file" accept="image/*" onChange={handlePhoto}
             style={{ fontSize: "13px" }} />
