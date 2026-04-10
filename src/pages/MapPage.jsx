@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { MapContainer, TileLayer, Marker, Tooltip } from "react-leaflet";
 import { db, auth } from "../firebase";
-import { collection, getDocs, deleteDoc, doc, updateDoc } from "firebase/firestore";
+import { collection, getDocs, deleteDoc, doc, updateDoc, increment } from "firebase/firestore";
 import { signOut } from "firebase/auth";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -267,7 +267,13 @@ export default function MapPage({ setEcran }) {
               <Marker key={m.id}
                 position={[parseFloat(m.lat), parseFloat(m.lng)]}
                 icon={estMaMaison ? pointOr : pointVert}
-                eventHandlers={{ click: () => { setSelected(m); setShowReview(false); setEditMode(false); } }}>
+                eventHandlers={{ click: async () => {
+                  setSelected(m);
+                  setShowReview(false);
+                  setEditMode(false);
+                  // Track vue
+                  try { await updateDoc(doc(db, "maisons", m.id), { vues: increment(1) }); } catch {}
+                } }}>
                 <Tooltip permanent direction="top" offset={[0, -10]}
                   className="leaflet-tooltip-nom"
                   opacity={1}>
@@ -357,6 +363,9 @@ export default function MapPage({ setEcran }) {
 
           <div style={{ padding: "0 16px 16px" }}>
             <a href={"https://wa.me/" + selected.whatsapp} target="_blank" rel="noreferrer"
+              onClick={async () => {
+                try { await updateDoc(doc(db, "maisons", selected.id), { clicsWhatsapp: increment(1) }); } catch {}
+              }}
               style={{ display: "block", textAlign: "center", padding: "10px",
                 background: "#25d366", color: "white", borderRadius: "10px",
                 textDecoration: "none", fontWeight: "bold", marginBottom: "8px" }}>
