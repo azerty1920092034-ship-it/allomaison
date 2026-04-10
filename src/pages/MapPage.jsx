@@ -63,21 +63,32 @@ export default function MapPage({ setEcran }) {
   const [showReview, setShowReview] = useState(false);
   const [suppression, setSuppression] = useState(false);
 
+  // ✅ NOUVEAU : est-ce que l'utilisateur connecté possède au moins une maison ?
+  const [estProprietaire, setEstProprietaire] = useState(false);
+
   // ── Galerie ───────────────────────────────────────────────────────────────
   const [photoAgrandie, setPhotoAgrandie] = useState(null);
 
   // ── Édition ───────────────────────────────────────────────────────────────
   const [editMode, setEditMode]     = useState(false);
   const [editForm, setEditForm]     = useState({});
-  const [editPhotos, setEditPhotos] = useState([]);   // URLs existantes
-  const [newFiles, setNewFiles]     = useState([]);   // nouveaux fichiers à uploader
+  const [editPhotos, setEditPhotos] = useState([]);
+  const [newFiles, setNewFiles]     = useState([]);
   const [saving, setSaving]         = useState(false);
   const [editError, setEditError]   = useState("");
 
   const loadData = async () => {
     try {
       const snap = await getDocs(collection(db, "maisons"));
-      setMaisons(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      setMaisons(data);
+
+      // ✅ Vérifie si l'utilisateur est propriétaire d'au moins une maison
+      const uid = auth.currentUser?.uid;
+      if (uid) {
+        const owns = data.some((m) => m.proprietaireId === uid);
+        setEstProprietaire(owns);
+      }
     } catch (e) { console.error(e); }
   };
 
@@ -94,7 +105,6 @@ export default function MapPage({ setEcran }) {
       paiement:    m.paiement    || "Par mois",
       prix:        m.prix        || "",
     });
-    // Normalise les photos : ancien champ "photo" (string) ou nouveau "photos" (array)
     const existantes = m.photos?.length ? m.photos : (m.photo ? [m.photo] : []);
     setEditPhotos(existantes);
     setNewFiles([]);
@@ -102,7 +112,6 @@ export default function MapPage({ setEcran }) {
     setEditMode(true);
   };
 
-  // ── Ajoute de nouvelles photos (max 6 au total) ───────────────────────────
   const handleNewFiles = (e) => {
     const files   = Array.from(e.target.files);
     const restant = 6 - editPhotos.length - newFiles.length;
@@ -118,7 +127,6 @@ export default function MapPage({ setEcran }) {
   const retirerNouvelle = (idx) =>
     setNewFiles((prev) => prev.filter((_, i) => i !== idx));
 
-  // ── Sauvegarde l'édition ──────────────────────────────────────────────────
   const handleSave = async () => {
     setEditError("");
     if (!editForm.prix || Number(editForm.prix) <= 0)
@@ -126,16 +134,13 @@ export default function MapPage({ setEcran }) {
 
     setSaving(true);
     try {
-      // Upload les nouvelles photos
       const nouvellesURLs = await Promise.all(newFiles.map((f) => uploadToCloudinary(f)));
       const toutesPhotos  = [...editPhotos, ...nouvellesURLs];
 
-      // Gestion vidéo
       let videoURL = selected.video || null;
       if (editForm._removeVideo) videoURL = null;
       if (editForm._newVideo) videoURL = await uploadToCloudinary(editForm._newVideo);
 
-      // Nettoyer les champs internes avant sauvegarde
       const { _removeVideo, _newVideo, ...formPropre } = editForm;
 
       await updateDoc(doc(db, "maisons", selected.id), {
@@ -145,7 +150,6 @@ export default function MapPage({ setEcran }) {
         video:  videoURL,
       });
 
-      // Met à jour localement
       const updated = { ...selected, ...formPropre, photos: toutesPhotos, photo: toutesPhotos[0] || null, video: videoURL };
       setMaisons((prev) => prev.map((m) => m.id === selected.id ? updated : m));
       setSelected(updated);
@@ -156,7 +160,6 @@ export default function MapPage({ setEcran }) {
     setSaving(false);
   };
 
-  // ── Suppression ───────────────────────────────────────────────────────────
   const handleDelete = async (maisonId) => {
     if (!window.confirm("Voulez-vous vraiment supprimer cette maison ?")) return;
     try {
@@ -179,7 +182,6 @@ export default function MapPage({ setEcran }) {
 
   const isMine = selected && selected.proprietaireId === auth.currentUser?.uid;
 
-  // ── Helpers styles ────────────────────────────────────────────────────────
   const inp = (label, key, type = "text", placeholder = "") => (
     <div style={{ marginBottom: "10px" }}>
       <p style={{ margin: "0 0 3px", fontSize: "12px", color: "#555" }}>{label}</p>
@@ -202,7 +204,6 @@ export default function MapPage({ setEcran }) {
     </div>
   );
 
-  // ── Photos à afficher dans la fiche ──────────────────────────────────────
   const getPhotos = (m) => m.photos?.length ? m.photos : (m.photo ? [m.photo] : []);
 
   return (
@@ -280,7 +281,6 @@ export default function MapPage({ setEcran }) {
                   setSelected(m);
                   setShowReview(false);
                   setEditMode(false);
-                  // Track vue
                   try { await updateDoc(doc(db, "maisons", m.id), { vues: increment(1) }); } catch {}
                 } }}>
                 <Tooltip permanent direction="top" offset={[0, -10]}
@@ -309,6 +309,33 @@ export default function MapPage({ setEcran }) {
           <span>Ma maison</span>
         </div>
       </div>
+
+      {/* ✅ BOUTON FLOTTANT — visible uniquement si l'utilisateur est propriétaire */}
+      {estProprietaire && (
+        <button
+          onClick={() => setEcran("dashboard")}
+          style={{
+            position: "absolute",
+            bottom: "20px",
+            left: "16px",
+            zIndex: 1000,
+            background: "#16a34a",
+            color: "white",
+            border: "none",
+            borderRadius: "50px",
+            padding: "12px 20px",
+            fontSize: "14px",
+            fontWeight: "700",
+            boxShadow: "0 4px 20px rgba(22,163,74,0.4)",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}
+        >
+          🏠 Mon espace propriétaire
+        </button>
+      )}
 
       {/* ════════════════════════════════════════════════════════════════════ */}
       {/* ── FICHE MAISON ── */}
@@ -348,13 +375,11 @@ export default function MapPage({ setEcran }) {
             if (!photos.length) return null;
             return (
               <div style={{ padding: "10px 16px" }}>
-                {/* Photo principale */}
                 <img src={photos[0]} alt="principale"
                   onClick={() => setPhotoAgrandie(photos[0])}
                   style={{ width: "100%", borderRadius: "10px",
                     marginBottom: photos.length > 1 ? "8px" : 0,
                     cursor: "zoom-in", objectFit: "cover", maxHeight: "180px" }} />
-                {/* Miniatures */}
                 {photos.length > 1 && (
                   <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
                     {photos.slice(1).map((url, i) => (
@@ -522,7 +547,6 @@ export default function MapPage({ setEcran }) {
                 📸 Photos ({editPhotos.length + newFiles.length}/6)
               </p>
 
-              {/* Photos existantes */}
               {editPhotos.length > 0 && (
                 <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "8px" }}>
                   {editPhotos.map((url, i) => (
@@ -544,7 +568,6 @@ export default function MapPage({ setEcran }) {
                 </div>
               )}
 
-              {/* Nouvelles photos en attente */}
               {newFiles.length > 0 && (
                 <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "8px" }}>
                   {newFiles.map((f, i) => (
@@ -565,7 +588,6 @@ export default function MapPage({ setEcran }) {
                 </div>
               )}
 
-              {/* Bouton ajouter photos */}
               {(editPhotos.length + newFiles.length) < 6 && (
                 <>
                   <label style={{ display: "block", padding: "8px",
