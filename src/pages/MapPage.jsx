@@ -130,14 +130,23 @@ export default function MapPage({ setEcran }) {
       const nouvellesURLs = await Promise.all(newFiles.map((f) => uploadToCloudinary(f)));
       const toutesPhotos  = [...editPhotos, ...nouvellesURLs];
 
+      // Gestion vidéo
+      let videoURL = selected.video || null;
+      if (editForm._removeVideo) videoURL = null;
+      if (editForm._newVideo) videoURL = await uploadToCloudinary(editForm._newVideo);
+
+      // Nettoyer les champs internes avant sauvegarde
+      const { _removeVideo, _newVideo, ...formPropre } = editForm;
+
       await updateDoc(doc(db, "maisons", selected.id), {
-        ...editForm,
+        ...formPropre,
         photos: toutesPhotos,
-        photo:  toutesPhotos[0] || null, // rétrocompat
+        photo:  toutesPhotos[0] || null,
+        video:  videoURL,
       });
 
       // Met à jour localement
-      const updated = { ...selected, ...editForm, photos: toutesPhotos, photo: toutesPhotos[0] || null };
+      const updated = { ...selected, ...formPropre, photos: toutesPhotos, photo: toutesPhotos[0] || null, video: videoURL };
       setMaisons((prev) => prev.map((m) => m.id === selected.id ? updated : m));
       setSelected(updated);
       setEditMode(false);
@@ -361,6 +370,17 @@ export default function MapPage({ setEcran }) {
             );
           })()}
 
+          {/* ── Vidéo ── */}
+          {selected.video && (
+            <div style={{ padding: "0 16px 8px" }}>
+              <p style={{ margin: "0 0 6px", fontSize: "12px",
+                fontWeight: "bold", color: "#7c3aed" }}>🎥 Vidéo de visite</p>
+              <video src={selected.video} controls
+                style={{ width: "100%", borderRadius: "10px",
+                  maxHeight: "180px", background: "#000" }} />
+            </div>
+          )}
+
           <div style={{ padding: "0 16px 16px" }}>
             <a href={"https://wa.me/" + selected.whatsapp} target="_blank" rel="noreferrer"
               onClick={async () => {
@@ -445,6 +465,55 @@ export default function MapPage({ setEcran }) {
                   style={{ width: "100%", padding: "8px 10px", border: "1px solid #ddd",
                     borderRadius: "8px", fontSize: "13px", boxSizing: "border-box" }} />
               </div>
+            </div>
+
+            {/* ── Vidéo ── */}
+            <div style={{ marginBottom: "12px", background: "#faf5ff",
+              borderRadius: "8px", padding: "10px", border: "1px solid #e9d5ff" }}>
+              <p style={{ margin: "0 0 6px", fontSize: "12px",
+                fontWeight: "bold", color: "#7c3aed" }}>
+                🎥 Vidéo{" "}
+                <span style={{ fontWeight: "normal", color: "#999", fontSize: "11px" }}>(facultatif)</span>
+              </p>
+              {selected.video && !editForm._removeVideo ? (
+                <div>
+                  <video src={selected.video} controls
+                    style={{ width: "100%", borderRadius: "8px",
+                      maxHeight: "140px", background: "#000", marginBottom: "6px" }} />
+                  <button
+                    onClick={() => setEditForm((f) => ({ ...f, _removeVideo: true }))}
+                    style={{ width: "100%", padding: "6px", background: "#fee2e2",
+                      color: "#dc2626", border: "none", borderRadius: "6px",
+                      fontSize: "12px", cursor: "pointer" }}>
+                    🗑️ Supprimer la vidéo
+                  </button>
+                </div>
+              ) : editForm._newVideo ? (
+                <div>
+                  <video src={URL.createObjectURL(editForm._newVideo)} controls
+                    style={{ width: "100%", borderRadius: "8px",
+                      maxHeight: "140px", background: "#000", marginBottom: "6px" }} />
+                  <button
+                    onClick={() => setEditForm((f) => ({ ...f, _newVideo: null }))}
+                    style={{ width: "100%", padding: "6px", background: "#fee2e2",
+                      color: "#dc2626", border: "none", borderRadius: "6px",
+                      fontSize: "12px", cursor: "pointer" }}>
+                    🗑️ Retirer
+                  </button>
+                </div>
+              ) : (
+                <label style={{ display: "block", padding: "8px",
+                  background: "white", border: "1px dashed #7c3aed",
+                  borderRadius: "8px", textAlign: "center",
+                  fontSize: "12px", color: "#7c3aed", cursor: "pointer" }}>
+                  🎬 {editForm._removeVideo ? "Ajouter une nouvelle vidéo" : "Ajouter une vidéo"}
+                  <input type="file" accept="video/*" style={{ display: "none" }}
+                    onChange={(e) => {
+                      const f = e.target.files[0];
+                      if (f) setEditForm((ef) => ({ ...ef, _newVideo: f, _removeVideo: false }));
+                    }} />
+                </label>
+              )}
             </div>
 
             {/* ── Gestion photos ── */}

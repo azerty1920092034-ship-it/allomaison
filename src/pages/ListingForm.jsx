@@ -80,8 +80,11 @@ export default function ListingForm({ onPublished }) {
     description: "", whatsapp: "", paiement: "Par mois",
     prix: "", lat: null, lng: null,
   });
-  const [photo, setPhoto]               = useState(null);
-  const [photoPreview, setPhotoPreview] = useState(null);
+  const [photos, setPhotos]             = useState([]);      // File[]
+  const [photoPreviews, setPhotoPreviews] = useState([]);   // URL[]
+  const [video, setVideo]               = useState(null);   // File
+  const [videoPreview, setVideoPreview] = useState(null);   // URL
+  const [videoLoading, setVideoLoading] = useState(false);
   const [loading, setLoading]           = useState(false);
   const [succes, setSucces]             = useState(false);
 
@@ -104,12 +107,32 @@ export default function ListingForm({ onPublished }) {
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
   const handlePhoto = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setPhoto(file);
-      setPhotoPreview(URL.createObjectURL(file));
-    }
+    const files  = Array.from(e.target.files);
+    const places = 6 - photos.length;
+    const added  = files.slice(0, places);
+    setPhotos([...photos, ...added]);
+    setPhotoPreviews([...photoPreviews, ...added.map((f) => URL.createObjectURL(f))]);
+    e.target.value = "";
   };
+  const removePhoto = (i) => {
+    setPhotos(photos.filter((_, j) => j !== i));
+    setPhotoPreviews(photoPreviews.filter((_, j) => j !== i));
+  };
+
+  // ── Vidéo ────────────────────────────────────────────────────────────────
+  const handleVideo = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    // Max 100 Mo
+    if (file.size > 100 * 1024 * 1024) {
+      setFormErrors((fe) => ({ ...fe, video: "❌ Vidéo trop lourde (max 100 Mo)." }));
+      return;
+    }
+    setVideo(file);
+    setVideoPreview(URL.createObjectURL(file));
+    setFormErrors((fe) => ({ ...fe, video: null }));
+  };
+  const removeVideo = () => { setVideo(null); setVideoPreview(null); };
 
   // ── Enregistre une position et marque comme validée ──────────────────────
   const handlePick = useCallback((lat, lng) => {
@@ -240,11 +263,19 @@ export default function ListingForm({ onPublished }) {
 
     setLoading(true);
     try {
-      const photoURL = photo ? await uploadToCloudinary(photo, "image") : null;
+      const urls = await Promise.all(photos.map((f) => uploadToCloudinary(f, "image")));
+      let videoURL = null;
+      if (video) {
+        setVideoLoading(true);
+        videoURL = await uploadToCloudinary(video, "video");
+        setVideoLoading(false);
+      }
       await addDoc(collection(db, "maisons"), {
         ...form,
-        whatsapp: whatsappClean, // stocke le numéro nettoyé
-        photo: photoURL,
+        whatsapp: whatsappClean,
+        photo:  urls[0] || null,
+        photos: urls,
+        video:  videoURL,
         proprietaireId: auth.currentUser.uid,
         disponible: true,
         dateAjout: new Date(),
@@ -345,19 +376,96 @@ export default function ListingForm({ onPublished }) {
           </div>
         </div>
 
-        {/* Photo */}
+        {/* Photos — max 6 */}
         <div style={{ marginBottom: "16px" }}>
           <p style={{ margin: "0 0 4px", fontSize: "13px", color: "#555" }}>
-            📸 Photo de la maison <span style={{ color: "#888", fontSize: "11px" }}>(facultatif)</span>
+            📸 Photos de la maison{" "}
+            <span style={{ color: "#888", fontSize: "11px" }}>
+              ({photos.length}/6 — facultatif)
+            </span>
           </p>
-          <input type="file" accept="image/*" onChange={handlePhoto}
-            style={{ fontSize: "13px" }} />
-          {photoPreview && (
-            <img src={photoPreview} alt="preview"
-              style={{ width: "100%", borderRadius: "10px", marginTop: "10px",
-                maxHeight: "180px", objectFit: "cover" }} />
+
+          {/* Miniatures avec suppression */}
+          {photoPreviews.length > 0 && (
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "10px" }}>
+              {photoPreviews.map((url, i) => (
+                <div key={i} style={{ position: "relative" }}>
+                  <img src={url} alt=""
+                    style={{ width: "80px", height: "65px", objectFit: "cover",
+                      borderRadius: "8px", border: "2px solid #bbf7d0" }} />
+                  <button onClick={() => removePhoto(i)}
+                    style={{ position: "absolute", top: "-6px", right: "-6px",
+                      background: "#dc2626", color: "white", border: "none",
+                      borderRadius: "50%", width: "18px", height: "18px",
+                      fontSize: "11px", cursor: "pointer", lineHeight: "18px",
+                      textAlign: "center", padding: 0 }}>✕</button>
+                </div>
+              ))}
+            </div>
           )}
-          {formErrors.photo && <p style={{ fontSize: "12px", color: "#dc2626", margin: "4px 0 0" }}>{formErrors.photo}</p>}
+
+          {/* Bouton ajouter si < 6 */}
+          {photos.length < 6 && (
+            <label style={{ display: "block", padding: "10px",
+              background: "#f0fdf4", border: "1px dashed #16a34a",
+              borderRadius: "8px", textAlign: "center",
+              fontSize: "13px", color: "#16a34a", cursor: "pointer" }}>
+              ➕ {photos.length === 0 ? "Ajouter des photos" : "Ajouter d'autres photos"}
+              <input type="file" accept="image/*" multiple style={{ display: "none" }}
+                onChange={handlePhoto} />
+            </label>
+          )}
+        </div>
+
+        {/* ── BLOC VIDÉO ── */}
+        <div style={{ marginBottom: "16px", background: "#faf5ff",
+          borderRadius: "10px", padding: "12px", border: "1px solid #e9d5ff" }}>
+          <p style={{ margin: "0 0 8px", fontSize: "13px", fontWeight: "bold", color: "#7c3aed" }}>
+            🎥 Vidéo de la maison{" "}
+            <span style={{ fontWeight: "normal", color: "#999", fontSize: "11px" }}>(facultatif — max 100 Mo)</span>
+          </p>
+
+          {!video ? (
+            <label style={{ display: "block", padding: "12px",
+              background: "white", border: "1px dashed #7c3aed",
+              borderRadius: "8px", textAlign: "center",
+              fontSize: "13px", color: "#7c3aed", cursor: "pointer" }}>
+              🎬 Ajouter une vidéo de visite
+              <input type="file" accept="video/*" style={{ display: "none" }}
+                onChange={handleVideo} />
+            </label>
+          ) : (
+            <div>
+              <video src={videoPreview} controls
+                style={{ width: "100%", borderRadius: "8px",
+                  maxHeight: "200px", background: "#000", marginBottom: "8px" }} />
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button onClick={removeVideo}
+                  style={{ flex: 1, padding: "7px", background: "#fee2e2",
+                    color: "#dc2626", border: "none", borderRadius: "8px",
+                    fontSize: "12px", cursor: "pointer" }}>
+                  🗑️ Supprimer la vidéo
+                </button>
+                <label style={{ flex: 1, padding: "7px", background: "white",
+                  border: "1px dashed #7c3aed", borderRadius: "8px",
+                  fontSize: "12px", color: "#7c3aed", cursor: "pointer",
+                  textAlign: "center" }}>
+                  🔄 Changer
+                  <input type="file" accept="video/*" style={{ display: "none" }}
+                    onChange={handleVideo} />
+                </label>
+              </div>
+              <p style={{ fontSize: "11px", color: "#888", margin: "6px 0 0" }}>
+                📁 {video.name} ({(video.size / (1024 * 1024)).toFixed(1)} Mo)
+              </p>
+            </div>
+          )}
+
+          {formErrors.video && (
+            <p style={{ fontSize: "12px", color: "#dc2626", margin: "6px 0 0" }}>
+              {formErrors.video}
+            </p>
+          )}
         </div>
 
         {/* ── BLOC LOCALISATION ────────────────────────────────────────────── */}
@@ -576,7 +684,7 @@ export default function ListingForm({ onPublished }) {
             background: loading ? "#86efac" : "#16a34a",
             color: "white", border: "none", borderRadius: "10px",
             fontSize: "16px", cursor: loading ? "not-allowed" : "pointer" }}>
-          {loading ? "⏳ Envoi en cours..." : "Publier ma maison 🏡"}
+          {videoLoading ? "🎥 Upload vidéo en cours..." : loading ? "⏳ Envoi en cours..." : "Publier ma maison 🏡"}
         </button>
 
         <p onClick={() => signOut(auth)}
