@@ -5,6 +5,27 @@ import { collection, getDocs, deleteDoc, doc, updateDoc } from "firebase/firesto
 import { signOut } from "firebase/auth";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+
+// Style tooltip nom propriétaire
+const tooltipStyle = document.createElement("style");
+tooltipStyle.textContent = `
+  .leaflet-tooltip-nom {
+    background: white;
+    border: none;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: bold;
+    color: #222;
+    white-space: nowrap;
+  }
+  .leaflet-tooltip-nom::before { display: none; }
+`;
+if (!document.head.querySelector("#tooltip-nom-style")) {
+  tooltipStyle.id = "tooltip-nom-style";
+  document.head.appendChild(tooltipStyle);
+}
 import ReviewForm from "../components/ReviewForm";
 import ErrorBoundary from "../components/ErrorBoundary";
 
@@ -247,7 +268,11 @@ export default function MapPage({ setEcran }) {
                 position={[parseFloat(m.lat), parseFloat(m.lng)]}
                 icon={estMaMaison ? pointOr : pointVert}
                 eventHandlers={{ click: () => { setSelected(m); setShowReview(false); setEditMode(false); } }}>
-                <Tooltip>{estMaMaison ? "⭐ " + m.type : m.type}</Tooltip>
+                <Tooltip permanent direction="top" offset={[0, -10]}
+                  className="leaflet-tooltip-nom"
+                  opacity={1}>
+                  {m.nom || "Propriétaire"}
+                </Tooltip>
               </Marker>
             );
           })}
