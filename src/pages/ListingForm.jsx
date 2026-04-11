@@ -271,15 +271,17 @@ export default function ListingForm({ onPublished }) {
         setVideoLoading(false);
       }
       await addDoc(collection(db, "maisons"), {
-        ...form,
-        whatsapp: whatsappClean,
-        photo:  urls[0] || null,
-        photos: urls,
-        video:  videoURL,
-        proprietaireId: auth.currentUser.uid,
-        disponible: true,
-        dateAjout: new Date(),
-      });
+  ...form,
+  whatsapp: whatsappClean,
+  photo:  urls[0] || null,
+  photos: urls,
+  video:  videoURL,
+  proprietaireId: auth.currentUser.uid,
+  // ✅ Sauvegarde le numéro de téléphone pour reconnaître le propriétaire
+  telephone: auth.currentUser.phoneNumber,
+  disponible: true,
+  dateAjout: new Date(),
+});
       setSucces(true);
       setTimeout(() => onPublished(), 2000);
     } catch (e) {
