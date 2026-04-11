@@ -82,6 +82,11 @@ export default function MapPage({ setEcran }) {
       const snap = await getDocs(collection(db, "maisons"));
       const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       setMaisons(data);
+    
+
+// 🔍 DEBUG
+console.log("phoneNumber:", auth.currentUser?.phoneNumber);
+console.log("whatsapp Firestore:", data.map(m => m.whatsapp));
 
       // ✅ Vérifie si l'utilisateur est propriétaire via son numéro de téléphone
       const tel = auth.currentUser?.phoneNumber?.replace(/[\s\+]/g, "") || "";
