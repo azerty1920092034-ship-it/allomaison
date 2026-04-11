@@ -104,6 +104,11 @@ export default function MapPage({ setEcran }) {
   };
 
   useEffect(() => { loadData(); }, []);
+  useEffect(() => {
+  setTimeout(() => {
+    window.dispatchEvent(new Event("resize"));
+  }, 100);
+}, []);
 
   // ── Ouvre l'édition ───────────────────────────────────────────────────────
   const openEdit = (m) => {
