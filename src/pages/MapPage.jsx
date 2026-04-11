@@ -279,12 +279,7 @@ export default function MapPage({ setEcran }) {
             {types.map((t) => <option key={t}>{t}</option>)}
           </select>
         </div>
-        <button onClick={() => {
-  document.querySelectorAll(".leaflet-container").forEach(c => {
-    delete c._leaflet_id;
-  });
-  setEcran("choix");
-}}
+        <button onClick={() => setEcran("choix")}
   style={{ padding: "6px 12px", background: "#fee2e2", color: "#dc2626",
     border: "none", borderRadius: "8px", cursor: "pointer",
     fontSize: "13px", alignSelf: "flex-end" }}>

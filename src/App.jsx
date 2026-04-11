@@ -19,7 +19,6 @@ function App() {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       setUser(u);
-      // Réinitialise toujours sur "choix" à chaque connexion
       if (!u) setEcran("choix");
       setLoading(false);
     });
@@ -38,19 +37,26 @@ function App() {
   if (!user) return <AuthPage />;
   if (user.email === ADMIN_EMAIL) return <AdminPage />;
 
-  // ✅ Tout utilisateur connecté voit d'abord le choix
   return (
-  <>
-    <div style={{ display: ecran === "choix" ? "block" : "none" }}>
-      <RoleChoice setEcran={setEcran} />
-    </div>
-    {ecran === "carte" ? (
-  <MapPage setEcran={setEcran} user={user} />
-) : null}
-    {ecran === "dashboard" && <ProprietaireDashboard setEcran={setEcran} />}
-    {ecran === "formulaire" && <ListingForm onPublished={() => setEcran("carte")} />}
-  </>
-);
+    <>
+      {/* RoleChoice — toujours monté, juste caché */}
+      <div style={{ display: ecran === "choix" ? "block" : "none" }}>
+        <RoleChoice setEcran={setEcran} />
+      </div>
+
+      {/* Carte — toujours montée en fixed, jamais démontée pour éviter bug Leaflet */}
+      <div style={{
+        display: ecran === "carte" ? "block" : "none",
+        position: "fixed", inset: 0, zIndex: ecran === "carte" ? 1 : -1
+      }}>
+        <MapPage setEcran={setEcran} user={user} />
+      </div>
+
+      {/* Dashboard et formulaire — montés/démontés normalement */}
+      {ecran === "dashboard" && <ProprietaireDashboard setEcran={setEcran} />}
+      {ecran === "formulaire" && <ListingForm onPublished={() => setEcran("carte")} />}
+    </>
+  );
 }
 
 export default App;
