@@ -39,12 +39,18 @@ function App() {
   if (user.email === ADMIN_EMAIL) return <AdminPage />;
 
   // ✅ Tout utilisateur connecté voit d'abord le choix
-  if (ecran === "choix") return <RoleChoice setEcran={setEcran} />;
-  if (ecran === "dashboard") return <ProprietaireDashboard setEcran={setEcran} />;
-  if (ecran === "carte") return <MapPage key="carte" setEcran={setEcran} user={user} />;
-  if (ecran === "formulaire") return <ListingForm onPublished={() => setEcran("carte")} />;
-
-  return <RoleChoice setEcran={setEcran} />;
+  return (
+  <>
+    <div style={{ display: ecran === "choix" ? "block" : "none" }}>
+      <RoleChoice setEcran={setEcran} />
+    </div>
+    <div style={{ display: ecran === "carte" ? "block" : "none" }}>
+      <MapPage setEcran={setEcran} user={user} />
+    </div>
+    {ecran === "dashboard" && <ProprietaireDashboard setEcran={setEcran} />}
+    {ecran === "formulaire" && <ListingForm onPublished={() => setEcran("carte")} />}
+  </>
+);
 }
 
 export default App;
