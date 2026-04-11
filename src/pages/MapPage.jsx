@@ -91,7 +91,10 @@ console.log("whatsapp Firestore:", data.map(m => m.whatsapp));
       // ✅ Vérifie si l'utilisateur est propriétaire via son numéro de téléphone
       const tel = auth.currentUser?.phoneNumber?.replace(/[\s\+]/g, "") || "";
 if (tel) {
-  const owns = data.some((m) => m.whatsapp?.replace(/[\s\+]/g, "") === tel);
+  const owns = data.some((m) => 
+  (m.whatsapp || m.WhatsApp)?.replace(/[\s\+]/g, "") === tel
+);
+
         setEstProprietaire(owns);
       }
     } catch (e) { console.error(e); }
@@ -187,7 +190,8 @@ if (tel) {
 
   // ✅ Vérifie via numéro de téléphone
   const userTel = auth.currentUser?.phoneNumber?.replace(/[\s\+]/g, "") || "";
-const isMine = selected && userTel && selected.whatsapp?.replace(/[\s\+]/g, "") === userTel;
+const isMine = selected && userTel && 
+  (selected.whatsapp || selected.WhatsApp)?.replace(/[\s\+]/g, "") === userTel;
 
   const inp = (label, key, type = "text", placeholder = "") => (
     <div style={{ marginBottom: "10px" }}>
@@ -280,7 +284,8 @@ const isMine = selected && userTel && selected.whatsapp?.replace(/[\s\+]/g, "") 
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
           {!suppression && filtrees.map((m) => {
            const tel = auth.currentUser?.phoneNumber?.replace(/[\s\+]/g, "") || "";
-const estMaMaison = tel && m.whatsapp?.replace(/[\s\+]/g, "") === tel;
+const estMaMaison = tel && 
+  (m.whatsapp || m.WhatsApp)?.replace(/[\s\+]/g, "") === tel;
             return (
               <Marker key={m.id}
                 position={[parseFloat(m.lat), parseFloat(m.lng)]}
