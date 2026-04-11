@@ -44,9 +44,9 @@ function App() {
     <div style={{ display: ecran === "choix" ? "block" : "none" }}>
       <RoleChoice setEcran={setEcran} />
     </div>
-    <div style={{ display: ecran === "carte" ? "block" : "none" }}>
-      <MapPage setEcran={setEcran} user={user} />
-    </div>
+    {ecran === "carte" ? (
+  <MapPage setEcran={setEcran} user={user} />
+) : null}
     {ecran === "dashboard" && <ProprietaireDashboard setEcran={setEcran} />}
     {ecran === "formulaire" && <ListingForm onPublished={() => setEcran("carte")} />}
   </>
