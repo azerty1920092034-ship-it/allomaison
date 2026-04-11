@@ -4,7 +4,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword
 } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
+import { doc, setDoc, updateDoc } from "firebase/firestore";
 
 export default function AuthPage() {
   const [isNew, setIsNew]             = useState(true);
@@ -18,23 +18,20 @@ export default function AuthPage() {
   const handleSubmit = async () => {
     setError("");
 
-    // ── Validations ───────────────────────────────────────────────────────────
     if (!email.trim())    return setError("❌ Entrez votre adresse email.");
     if (!password.trim()) return setError("❌ Entrez un mot de passe.");
     if (password.length < 6) return setError("❌ Le mot de passe doit faire au moins 6 caractères.");
-    if (isNew) {
-      const wp = whatsapp.replace(/[\s\-\+]/g, "");
-      if (!/^\d{8,15}$/.test(wp))
-        return setError("❌ Numéro WhatsApp invalide. Ex: 22967000000");
-    }
+
+    // ✅ Numéro WhatsApp obligatoire aussi à la CONNEXION
+    const wp = whatsapp.replace(/[\s\-\+]/g, "");
+    if (!/^\d{8,15}$/.test(wp))
+      return setError("❌ Numéro WhatsApp invalide. Ex: 22967000000");
 
     setLoading(true);
     try {
       if (isNew) {
         // ── Inscription ───────────────────────────────────────────────────────
         const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
-        const wp   = whatsapp.replace(/[\s\-\+]/g, "");
-        // Crée le profil dans Firestore
         await setDoc(doc(db, "users", cred.user.uid), {
           email:     email.trim(),
           whatsapp:  wp,
@@ -43,8 +40,13 @@ export default function AuthPage() {
           actif:     true,
         });
       } else {
-        // ── Connexion ─────────────────────────────────────────────────────────
-        await signInWithEmailAndPassword(auth, email.trim(), password);
+        // ── Connexion : on se connecte puis on met à jour le numéro ──────────
+        const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
+        // ✅ Sauvegarde/met à jour le numéro WhatsApp à chaque connexion
+        await setDoc(doc(db, "users", cred.user.uid), {
+          email:    email.trim(),
+          whatsapp: wp,
+        }, { merge: true }); // merge:true pour ne pas écraser les autres champs
       }
     } catch (e) {
       const msg = {
@@ -60,7 +62,6 @@ export default function AuthPage() {
     setLoading(false);
   };
 
-  // ── Styles réutilisables ──────────────────────────────────────────────────
   const inputStyle = (hasError) => ({
     width: "100%", padding: "11px 12px",
     border: hasError ? "1px solid #dc2626" : "1px solid #ddd",
@@ -79,7 +80,6 @@ export default function AuthPage() {
         background: "white", padding: "40px 36px", borderRadius: "20px",
         boxShadow: "0 4px 24px rgba(0,0,0,0.1)", width: "100%", maxWidth: "360px",
       }}>
-        {/* ── En-tête ── */}
         <h1 style={{ color: "#16a34a", textAlign: "center", marginBottom: "4px", fontSize: "26px" }}>
           🏠 ALLOmaison
         </h1>
@@ -100,30 +100,31 @@ export default function AuthPage() {
           />
         </div>
 
-        {/* ── WhatsApp (inscription uniquement) ── */}
-        {isNew && (
-          <div style={{ marginBottom: "12px" }}>
-            <p style={{ margin: "0 0 4px", fontSize: "13px", color: "#555" }}>
-              Numéro WhatsApp
-            </p>
-            <div style={{ position: "relative" }}>
-              <span style={{
-                position: "absolute", left: "12px", top: "50%",
-                transform: "translateY(-50%)", fontSize: "13px", color: "#888",
-              }}>🇧🇯</span>
-              <input
-                type="tel"
-                placeholder="Ex: 22967000000"
-                value={whatsapp}
-                onChange={(e) => { setWhatsapp(e.target.value); setError(""); }}
-                style={{ ...inputStyle(false), paddingLeft: "36px" }}
-              />
-            </div>
-            <p style={{ fontSize: "11px", color: "#999", margin: "4px 0 0" }}>
-              Les locataires vous contacteront via ce numéro.
-            </p>
+        {/* ── WhatsApp — affiché à l'inscription ET à la connexion ── */}
+        <div style={{ marginBottom: "12px" }}>
+          <p style={{ margin: "0 0 4px", fontSize: "13px", color: "#555" }}>
+            Numéro WhatsApp
+          </p>
+          <div style={{ position: "relative" }}>
+            <span style={{
+              position: "absolute", left: "12px", top: "50%",
+              transform: "translateY(-50%)", fontSize: "13px", color: "#888",
+            }}>🇧🇯</span>
+            <input
+              type="tel"
+              placeholder="Ex: 22967000000"
+              value={whatsapp}
+              onChange={(e) => { setWhatsapp(e.target.value); setError(""); }}
+              style={{ ...inputStyle(false), paddingLeft: "36px" }}
+            />
           </div>
-        )}
+          {/* ✅ Message différent selon inscription ou connexion */}
+          <p style={{ fontSize: "11px", color: "#999", margin: "4px 0 0" }}>
+            {isNew
+              ? "Les locataires vous contacteront via ce numéro."
+              : "Entrez le numéro utilisé lors de la publication de votre maison."}
+          </p>
+        </div>
 
         {/* ── Mot de passe ── */}
         <div style={{ marginBottom: "20px" }}>
@@ -150,7 +151,6 @@ export default function AuthPage() {
           </div>
         </div>
 
-        {/* ── Erreur ── */}
         {error && (
           <div style={{
             background: "#fef2f2", border: "1px solid #fecaca",
@@ -161,7 +161,6 @@ export default function AuthPage() {
           </div>
         )}
 
-        {/* ── Bouton principal ── */}
         <button
           onClick={handleSubmit}
           disabled={loading}
@@ -177,7 +176,6 @@ export default function AuthPage() {
             : isNew ? "Créer mon compte 🏡" : "Se connecter"}
         </button>
 
-        {/* ── Switcher inscription / connexion ── */}
         <p
           onClick={() => { setIsNew(!isNew); setError(""); }}
           style={{

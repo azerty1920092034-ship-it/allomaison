@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { MapContainer, TileLayer, Marker, Tooltip } from "react-leaflet";
 import { db, auth } from "../firebase";
-import { collection, getDocs, deleteDoc, doc, updateDoc, increment } from "firebase/firestore";
+import { collection, getDocs, deleteDoc, doc, updateDoc, increment, getDoc } from "firebase/firestore";
 import { signOut } from "firebase/auth";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -65,6 +65,7 @@ export default function MapPage({ setEcran }) {
 
   // ✅ NOUVEAU : est-ce que l'utilisateur connecté possède au moins une maison ?
   const [estProprietaire, setEstProprietaire] = useState(false);
+  const [userWp, setUserWp] = useState(""); // numéro WhatsApp de l'utilisateur connecté
 
   // ── Galerie ───────────────────────────────────────────────────────────────
   const [photoAgrandie, setPhotoAgrandie] = useState(null);
@@ -82,20 +83,21 @@ export default function MapPage({ setEcran }) {
       const snap = await getDocs(collection(db, "maisons"));
       const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       setMaisons(data);
-    
 
-// 🔍 DEBUG
-console.log("phoneNumber:", auth.currentUser?.phoneNumber);
-console.log("whatsapp Firestore:", data.map(m => m.whatsapp));
-
-      // ✅ Vérifie si l'utilisateur est propriétaire via son numéro de téléphone
-      const tel = auth.currentUser?.phoneNumber?.replace(/[\s\+]/g, "") || "";
-if (tel) {
-  const owns = data.some((m) => 
-  (m.whatsapp || m.WhatsApp)?.replace(/[\s\+]/g, "") === tel
-);
-
-        setEstProprietaire(owns);
+      // ✅ Récupère le numéro WhatsApp de l'utilisateur depuis son profil Firestore
+      const uid = auth.currentUser?.uid;
+      if (uid) {
+        const userSnap = await getDoc(doc(db, "users", uid));
+        const userWp = userSnap.exists()
+          ? userSnap.data().whatsapp?.replace(/[\s\+]/g, "") || ""
+          : "";
+        if (userWp) {
+          setUserWp(userWp); // ✅ sauvegarde pour isMine et marker
+          const owns = data.some(
+            (m) => (m.whatsapp || m.WhatsApp)?.replace(/[\s\+]/g, "") === userWp
+          );
+          setEstProprietaire(owns);
+        }
       }
     } catch (e) { console.error(e); }
   };
@@ -188,10 +190,9 @@ if (tel) {
     return okQ && okT && okC;
   });
 
-  // ✅ Vérifie via numéro de téléphone
-  const userTel = auth.currentUser?.phoneNumber?.replace(/[\s\+]/g, "") || "";
-const isMine = selected && userTel && 
-  (selected.whatsapp || selected.WhatsApp)?.replace(/[\s\+]/g, "") === userTel;
+  // ✅ Vérifie si la maison sélectionnée appartient à l'utilisateur via son numéro WhatsApp
+  const isMine = selected && userWp &&
+    (selected.whatsapp || selected.WhatsApp)?.replace(/[\s\+]/g, "") === userWp;
 
   const inp = (label, key, type = "text", placeholder = "") => (
     <div style={{ marginBottom: "10px" }}>
@@ -283,9 +284,8 @@ const isMine = selected && userTel &&
           style={{ height: "100%", width: "100%" }}>
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
           {!suppression && filtrees.map((m) => {
-           const tel = auth.currentUser?.phoneNumber?.replace(/[\s\+]/g, "") || "";
-const estMaMaison = tel && 
-  (m.whatsapp || m.WhatsApp)?.replace(/[\s\+]/g, "") === tel;
+            const estMaMaison = userWp &&
+              (m.whatsapp || m.WhatsApp)?.replace(/[\s\+]/g, "") === userWp;
             return (
               <Marker key={m.id}
                 position={[parseFloat(m.lat), parseFloat(m.lng)]}
