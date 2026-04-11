@@ -328,33 +328,7 @@ export default function MapPage({ setEcran }) {
         </div>
       </div>
 
-      {/* ✅ BOUTON FLOTTANT — visible uniquement si l'utilisateur est propriétaire */}
-      {estProprietaire && (
-        <button
-          onClick={() => setEcran("dashboard")}
-          style={{
-            position: "absolute",
-            bottom: "20px",
-            left: "16px",
-            zIndex: 1000,
-            background: "#16a34a",
-            color: "white",
-            border: "none",
-            borderRadius: "50px",
-            padding: "12px 20px",
-            fontSize: "14px",
-            fontWeight: "700",
-            boxShadow: "0 4px 20px rgba(22,163,74,0.4)",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-          }}
-        >
-          🏠 Mon espace propriétaire
-        </button>
-      )}
-
+    
       {/* ════════════════════════════════════════════════════════════════════ */}
       {/* ── FICHE MAISON ── */}
       {/* ════════════════════════════════════════════════════════════════════ */}
