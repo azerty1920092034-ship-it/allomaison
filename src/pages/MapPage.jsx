@@ -274,12 +274,17 @@ export default function MapPage({ setEcran }) {
             {types.map((t) => <option key={t}>{t}</option>)}
           </select>
         </div>
-        <button onClick={() => setEcran("choix")}
-          style={{ padding: "6px 12px", background: "#fee2e2", color: "#dc2626",
-            border: "none", borderRadius: "8px", cursor: "pointer",
-            fontSize: "13px", alignSelf: "flex-end" }}>
-          Quitter
-        </button>
+        <button onClick={() => {
+  // Détruit proprement la carte avant de changer d'écran
+  const containers = document.querySelectorAll(".leaflet-container");
+  containers.forEach(c => { if (c._leaflet_id) { c._leaflet_id = null; } });
+  setTimeout(() => setEcran("choix"), 50);
+}}
+  style={{ padding: "6px 12px", background: "#fee2e2", color: "#dc2626",
+    border: "none", borderRadius: "8px", cursor: "pointer",
+    fontSize: "13px", alignSelf: "flex-end" }}>
+  Quitter
+</button>
       </div>
 
       {/* ── Carte ── */}
