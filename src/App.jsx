@@ -41,7 +41,7 @@ function App() {
   // ✅ Tout utilisateur connecté voit d'abord le choix
   if (ecran === "choix") return <RoleChoice setEcran={setEcran} />;
   if (ecran === "dashboard") return <ProprietaireDashboard setEcran={setEcran} />;
-  if (ecran === "carte") return <MapPage setEcran={setEcran} user={user} />;
+  if (ecran === "carte") return <MapPage key="carte" setEcran={setEcran} user={user} />;
   if (ecran === "formulaire") return <ListingForm onPublished={() => setEcran("carte")} />;
 
   return <RoleChoice setEcran={setEcran} />;

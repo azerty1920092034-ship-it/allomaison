@@ -5,7 +5,7 @@ export default function RoleChoice({ setEcran }) {
   return (
     <div style={{
       display: "flex", flexDirection: "column", alignItems: "center",
-      justifyContent: "center", height: "100vh", background: "#f0fdf4"
+      justifyContent: "center", minHeight: "100vh", background: "#f0fdf4"
     }}>
       <div style={{
         background: "white", padding: "40px", borderRadius: "16px",
