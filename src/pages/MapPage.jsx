@@ -84,20 +84,21 @@ export default function MapPage({ setEcran }) {
       const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       setMaisons(data);
 
-      // ✅ Récupère le numéro WhatsApp de l'utilisateur depuis son profil Firestore
       const uid = auth.currentUser?.uid;
       if (uid) {
+        // ✅ Récupère le numéro WhatsApp depuis le profil Firestore
         const userSnap = await getDoc(doc(db, "users", uid));
-        const userWp = userSnap.exists()
+        const userWpVal = userSnap.exists()
           ? userSnap.data().whatsapp?.replace(/[\s\+]/g, "") || ""
           : "";
-        if (userWp) {
-          setUserWp(userWp); // ✅ sauvegarde pour isMine et marker
-          const owns = data.some(
-            (m) => (m.whatsapp || m.WhatsApp)?.replace(/[\s\+]/g, "") === userWp
-          );
-          setEstProprietaire(owns);
-        }
+        if (userWpVal) setUserWp(userWpVal);
+
+        // ✅ Est propriétaire si : uid correspond OU numéro whatsapp correspond
+        const owns = data.some((m) =>
+          m.proprietaireId === uid ||
+          (userWpVal && (m.whatsapp || m.WhatsApp)?.replace(/[\s\+]/g, "") === userWpVal)
+        );
+        setEstProprietaire(owns);
       }
     } catch (e) { console.error(e); }
   };
@@ -190,9 +191,12 @@ export default function MapPage({ setEcran }) {
     return okQ && okT && okC;
   });
 
-  // ✅ Vérifie si la maison sélectionnée appartient à l'utilisateur via son numéro WhatsApp
-  const isMine = selected && userWp &&
-    (selected.whatsapp || selected.WhatsApp)?.replace(/[\s\+]/g, "") === userWp;
+  // ✅ La maison est "mienne" si : uid correspond OU numéro whatsapp correspond
+  const uid = auth.currentUser?.uid;
+  const isMine = selected && (
+    selected.proprietaireId === uid ||
+    (userWp && (selected.whatsapp || selected.WhatsApp)?.replace(/[\s\+]/g, "") === userWp)
+  );
 
   const inp = (label, key, type = "text", placeholder = "") => (
     <div style={{ marginBottom: "10px" }}>
@@ -284,8 +288,9 @@ export default function MapPage({ setEcran }) {
           style={{ height: "100%", width: "100%" }}>
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
           {!suppression && filtrees.map((m) => {
-            const estMaMaison = userWp &&
-              (m.whatsapp || m.WhatsApp)?.replace(/[\s\+]/g, "") === userWp;
+            const estMaMaison = 
+              m.proprietaireId === uid ||
+              (userWp && (m.whatsapp || m.WhatsApp)?.replace(/[\s\+]/g, "") === userWp);
             return (
               <Marker key={m.id}
                 position={[parseFloat(m.lat), parseFloat(m.lng)]}
