@@ -83,10 +83,12 @@ export default function MapPage({ setEcran }) {
       const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       setMaisons(data);
 
-      // ✅ Vérifie si l'utilisateur est propriétaire d'au moins une maison
-      const uid = auth.currentUser?.uid;
-      if (uid) {
-        const owns = data.some((m) => m.proprietaireId === uid);
+      // ✅ Vérifie si l'utilisateur est propriétaire via son numéro de téléphone
+      const tel = auth.currentUser?.phoneNumber;
+      if (tel) {
+        const owns = data.some(
+          (m) => m.telephone === tel || m.whatsapp === tel.replace("+", "")
+        );
         setEstProprietaire(owns);
       }
     } catch (e) { console.error(e); }
@@ -180,7 +182,12 @@ export default function MapPage({ setEcran }) {
     return okQ && okT && okC;
   });
 
-  const isMine = selected && selected.proprietaireId === auth.currentUser?.uid;
+  // ✅ Vérifie via numéro de téléphone
+  const userTel = auth.currentUser?.phoneNumber;
+  const isMine = selected && userTel && (
+    selected.telephone === userTel ||
+    selected.whatsapp === userTel.replace("+", "")
+  );
 
   const inp = (label, key, type = "text", placeholder = "") => (
     <div style={{ marginBottom: "10px" }}>
@@ -272,7 +279,8 @@ export default function MapPage({ setEcran }) {
           style={{ height: "100%", width: "100%" }}>
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
           {!suppression && filtrees.map((m) => {
-            const estMaMaison = m.proprietaireId === auth.currentUser?.uid;
+            const tel = auth.currentUser?.phoneNumber;
+            const estMaMaison = tel && (m.telephone === tel || m.whatsapp === tel.replace("+", ""));
             return (
               <Marker key={m.id}
                 position={[parseFloat(m.lat), parseFloat(m.lng)]}
