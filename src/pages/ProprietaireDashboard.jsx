@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { auth, db } from "../firebase";
 import { signOut } from "firebase/auth";
-import { collection, query, where, onSnapshot, doc, getDoc } from "firebase/firestore";
+import { collection, query, where, onSnapshot, doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 
 export default function ProprietaireDashboard() {
   const [maisons, setMaisons]   = useState([]);
   const [profil, setProfil]     = useState(null);
   const [loading, setLoading]   = useState(true);
+  const [confirm, setConfirm]   = useState(null); // id maison en cours de confirmation
 
   // ── Charge le profil et les maisons du propriétaire ──────────────────────
   useEffect(() => {
@@ -15,18 +16,11 @@ export default function ProprietaireDashboard() {
 
     let unsubMaisons = null;
 
-    // 1. Charge le profil pour récupérer le numéro WhatsApp
     getDoc(doc(db, "users", uid)).then((snap) => {
       if (!snap.exists()) { setLoading(false); return; }
       const data = snap.data();
       setProfil(data);
-
       const wp = data.whatsapp || "";
-
-      // 2. Double requête :
-      //    - maisons publiées par l'admin et liées à ce uid
-      //    - maisons publiées avec ce numéro WhatsApp (avant création du compte)
-      //    On fusionne les deux sans doublon.
 
       let parId  = [];
       let parWp  = [];
@@ -43,7 +37,6 @@ export default function ProprietaireDashboard() {
         setLoading(false);
       };
 
-      // Requête 1 : par proprietaireId
       const q1 = query(collection(db, "maisons"), where("proprietaireId", "==", uid));
       const unsub1 = onSnapshot(q1, (snap) => {
         parId = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -51,7 +44,6 @@ export default function ProprietaireDashboard() {
         fusionner();
       });
 
-      // Requête 2 : par numéro WhatsApp (maisons publiées avant inscription)
       let unsub2 = () => {};
       if (wp) {
         const q2 = query(collection(db, "maisons"), where("whatsapp", "==", wp));
@@ -61,7 +53,7 @@ export default function ProprietaireDashboard() {
           fusionner();
         });
       } else {
-        reçuWp = true; // pas de WhatsApp → on ignore cette requête
+        reçuWp = true;
       }
 
       unsubMaisons = () => { unsub1(); unsub2(); };
@@ -69,6 +61,31 @@ export default function ProprietaireDashboard() {
 
     return () => { if (unsubMaisons) unsubMaisons(); };
   }, []);
+
+  // ── Marquer comme loué ────────────────────────────────────────────────────
+  const marquerLoue = async (maisonId) => {
+    try {
+      await updateDoc(doc(db, "maisons", maisonId), {
+        disponible: false,
+        dateLocation: serverTimestamp(),
+      });
+      setConfirm(null);
+    } catch (e) {
+      alert("Erreur : " + e.message);
+    }
+  };
+
+  // ── Remettre en disponible ────────────────────────────────────────────────
+  const marquerDisponible = async (maisonId) => {
+    try {
+      await updateDoc(doc(db, "maisons", maisonId), {
+        disponible: true,
+        dateLocation: null,
+      });
+    } catch (e) {
+      alert("Erreur : " + e.message);
+    }
+  };
 
   const statutBadge = (maison) => {
     if (maison.featured && maison.featuredUntil?.toDate() > new Date()) {
@@ -191,6 +208,67 @@ export default function ProprietaireDashboard() {
                         lineHeight: "1.5" }}>
                         {m.description}
                       </p>
+                    )}
+
+                    {/* ── Bouton Marquer comme loué / Remettre dispo ── */}
+                    {m.disponible ? (
+                      confirm === m.id ? (
+                        // Écran de confirmation
+                        <div style={{ background: "#fef2f2", border: "1px solid #fecaca",
+                          borderRadius: "10px", padding: "12px", marginBottom: "10px" }}>
+                          <p style={{ margin: "0 0 6px", fontSize: "13px",
+                            color: "#dc2626", fontWeight: "bold" }}>
+                            🔑 Confirmer la location ?
+                          </p>
+                          <p style={{ margin: "0 0 10px", fontSize: "12px", color: "#555" }}>
+                            La maison sera marquée <strong>occupée</strong> et
+                            n'apparaîtra plus dans les recherches.
+                          </p>
+                          <div style={{ display: "flex", gap: "8px" }}>
+                            <button onClick={() => setConfirm(null)}
+                              style={{ flex: 1, padding: "8px", background: "#f3f4f6",
+                                color: "#555", border: "none", borderRadius: "8px",
+                                fontSize: "13px", cursor: "pointer" }}>
+                              Annuler
+                            </button>
+                            <button onClick={() => marquerLoue(m.id)}
+                              style={{ flex: 1, padding: "8px", background: "#dc2626",
+                                color: "white", border: "none", borderRadius: "8px",
+                                fontSize: "13px", cursor: "pointer", fontWeight: "bold" }}>
+                              ✅ Confirmer
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button onClick={() => setConfirm(m.id)}
+                          style={{ width: "100%", padding: "10px",
+                            background: "#f0fdf4", color: "#16a34a",
+                            border: "1px solid #bbf7d0", borderRadius: "10px",
+                            fontSize: "13px", cursor: "pointer",
+                            fontWeight: "bold", marginBottom: "10px" }}>
+                          🔑 Marquer comme loué
+                        </button>
+                      )
+                    ) : (
+                      <div style={{ background: "#fef2f2", border: "1px solid #fecaca",
+                        borderRadius: "10px", padding: "10px 12px", marginBottom: "10px" }}>
+                        <p style={{ margin: "0 0 6px", fontSize: "12px",
+                          color: "#dc2626", fontWeight: "bold" }}>
+                          🔴 Maison occupée
+                          {m.dateLocation && (
+                            <span style={{ fontWeight: "normal", color: "#888" }}>
+                              {" "}— depuis le {m.dateLocation.toDate().toLocaleDateString("fr-FR")}
+                            </span>
+                          )}
+                        </p>
+                        <button onClick={() => marquerDisponible(m.id)}
+                          style={{ width: "100%", padding: "7px",
+                            background: "white", color: "#16a34a",
+                            border: "1px solid #16a34a", borderRadius: "8px",
+                            fontSize: "12px", cursor: "pointer" }}>
+                          🟢 Remettre en disponible
+                        </button>
+                      </div>
                     )}
 
                     {/* Bouton mise en avant */}
