@@ -1,12 +1,97 @@
-import { useState, useEffect } from "react";
-import { MapContainer, TileLayer, Marker, Tooltip } from "react-leaflet";
-import MarkerClusterGroup from "react-leaflet-markercluster";
-import "react-leaflet-markercluster/dist/styles.min.css";
+import { useState, useEffect, useRef } from "react";
+import { MapContainer, TileLayer, useMap } from "react-leaflet";
 import { db, auth } from "../firebase";
 import { collection, getDocs, deleteDoc, doc, updateDoc, increment, getDoc } from "firebase/firestore";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import ReviewForm from "../components/ReviewForm";
+
+// ── Composant clustering natif Leaflet ───────────────────────────────────────
+function ClusterLayer({ maisons, isMine, pointVert, pointOr, onSelect }) {
+  const map = useMap();
+  const groupRef = useRef(null);
+
+  useEffect(() => {
+    // Charge leaflet.markercluster depuis CDN si pas déjà chargé
+    const loadCluster = async () => {
+      if (!window.L.MarkerClusterGroup) {
+        await new Promise((resolve) => {
+          const link = document.createElement("link");
+          link.rel = "stylesheet";
+          link.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.min.css";
+          document.head.appendChild(link);
+
+          const script = document.createElement("script");
+          script.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js";
+          script.onload = resolve;
+          document.head.appendChild(script);
+        });
+      }
+
+      // Supprimer l'ancien groupe
+      if (groupRef.current) map.removeLayer(groupRef.current);
+
+      // Créer le groupe cluster
+      const group = window.L.markerClusterGroup({
+        maxClusterRadius: 60,
+        showCoverageOnHover: false,
+        iconCreateFunction: (cluster) => {
+          const count = cluster.getChildCount();
+          const hasMine = cluster.getAllChildMarkers().some(m => m.options.isMine);
+          return window.L.divIcon({
+            html: `<div style="
+              width: 38px; height: 38px;
+              background: ${hasMine ? "#f59e0b" : "#16a34a"};
+              border-radius: 50%;
+              border: 3px solid white;
+              box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+              display: flex; align-items: center; justify-content: center;
+              color: white; font-weight: bold; font-size: 14px;
+            ">${count}</div>`,
+            className: "",
+            iconSize: [38, 38],
+            iconAnchor: [19, 19],
+          });
+        },
+      });
+
+      // Ajouter les markers
+      maisons.forEach((m) => {
+        const mine = isMine(m);
+        const marker = window.L.marker(
+          [parseFloat(m.lat), parseFloat(m.lng)],
+          { icon: mine ? pointOr : pointVert, isMine: mine }
+        );
+
+        // Tooltip au survol
+        marker.bindTooltip(
+          `<div style="font-size:12px;line-height:1.6">
+            <strong>${m.nom || "Propriétaire"}</strong><br/>
+            <span style="color:#555">${m.type} — ${m.quartier}</span><br/>
+            <span style="color:#16a34a;font-weight:bold">
+              ${Number(m.prix).toLocaleString()} FCFA ${m.paiement}
+            </span>
+          </div>`,
+          { direction: "top", offset: [0, -10] }
+        );
+
+        marker.on("click", () => onSelect(m));
+        group.addLayer(marker);
+      });
+
+      map.addLayer(group);
+      groupRef.current = group;
+    };
+
+    if (maisons.length > 0) loadCluster();
+
+    return () => {
+      if (groupRef.current) map.removeLayer(groupRef.current);
+    };
+  }, [maisons, map]);
+
+  return null;
+}
 import ErrorBoundary from "../components/ErrorBoundary";
 
 const CLOUDINARY_CLOUD  = "dz3yafimu";
@@ -175,25 +260,6 @@ export default function MapPage({ setEcran }) {
     </div>
   );
 
-  // ── Icône cluster personnalisée ───────────────────────────────────────────
-  const createClusterIcon = (cluster) => {
-    const count = cluster.getChildCount();
-    return L.divIcon({
-      html: `<div style="
-        width: 38px; height: 38px;
-        background: #16a34a;
-        border-radius: 50%;
-        border: 3px solid white;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.25);
-        display: flex; align-items: center; justify-content: center;
-        color: white; font-weight: bold; font-size: 14px;
-      ">${count}</div>`,
-      className: "",
-      iconSize: [38, 38],
-      iconAnchor: [19, 19],
-    });
-  };
-
   return (
     <div style={{ position: "relative", height: "100vh", width: "100%" }}>
 
@@ -259,39 +325,19 @@ export default function MapPage({ setEcran }) {
         <MapContainer key="map" center={[6.3654, 2.4183]} zoom={13}
           style={{ height: "100%", width: "100%" }}>
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-
           {!suppression && (
-            <MarkerClusterGroup
-              showCoverageOnHover={false}
-              maxClusterRadius={50}
-              iconCreateFunction={createClusterIcon}
-            >
-              {filtrees.map((m) => {
-                const mine = isMine(m);
-                return (
-                  <Marker key={m.id}
-                    position={[parseFloat(m.lat), parseFloat(m.lng)]}
-                    icon={mine ? pointOr : pointVert}
-                    eventHandlers={{ click: async () => {
-                      setSelected(m);
-                      setShowReview(false);
-                      setEditMode(false);
-                      try { await updateDoc(doc(db, "maisons", m.id), { vues: increment(1) }); } catch {}
-                    }}}>
-                    {/* Tooltip au survol seulement — plus d'encombrement */}
-                    <Tooltip direction="top" offset={[0, -10]} opacity={0.95}>
-                      <div style={{ fontSize: "12px", lineHeight: "1.5" }}>
-                        <strong>{m.nom || "Propriétaire"}</strong><br />
-                        <span style={{ color: "#555" }}>{m.type} — {m.quartier}</span><br />
-                        <span style={{ color: "#16a34a", fontWeight: "bold" }}>
-                          {Number(m.prix).toLocaleString()} FCFA {m.paiement}
-                        </span>
-                      </div>
-                    </Tooltip>
-                  </Marker>
-                );
-              })}
-            </MarkerClusterGroup>
+            <ClusterLayer
+              maisons={filtrees}
+              isMine={isMine}
+              pointVert={pointVert}
+              pointOr={pointOr}
+              onSelect={async (m) => {
+                setSelected(m);
+                setShowReview(false);
+                setEditMode(false);
+                try { await updateDoc(doc(db, "maisons", m.id), { vues: increment(1) }); } catch {}
+              }}
+            />
           )}
         </MapContainer>
       </ErrorBoundary>
