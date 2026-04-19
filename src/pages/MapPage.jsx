@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { MapContainer, TileLayer, Marker, Tooltip } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Tooltip, useMap } from "react-leaflet";
 import { db, auth } from "../firebase";
 import { collection, getDocs, deleteDoc, doc, updateDoc, increment, getDoc } from "firebase/firestore";
 import { signOut } from "firebase/auth";
@@ -55,6 +55,17 @@ const pointOr = L.divIcon({
 const quartiers = ["Tous", "Cotonou", "Godomey", "Cocotomey", "Abomey-Calavi"];
 const types     = ["Tous", "Chambre salon", "Entree couchee", "Studio", "Maison entiere"];
 
+// ✅ Composant interne qui force le recalcul de la carte
+function MapResizer() {
+  const map = useMap();
+  useEffect(() => {
+    setTimeout(() => {
+      map.invalidateSize();
+    }, 100);
+  }, [map]);
+  return null;
+}
+
 export default function MapPage({ setEcran }) {
   const [maisons, setMaisons]       = useState([]);
   const [quartier, setQuartier]     = useState("Tous");
@@ -62,15 +73,10 @@ export default function MapPage({ setEcran }) {
   const [selected, setSelected]     = useState(null);
   const [showReview, setShowReview] = useState(false);
   const [suppression, setSuppression] = useState(false);
-
-  // ✅ NOUVEAU : est-ce que l'utilisateur connecté possède au moins une maison ?
   const [estProprietaire, setEstProprietaire] = useState(false);
-  const [userWp, setUserWp] = useState(""); // numéro WhatsApp de l'utilisateur connecté
+  const [userWp, setUserWp] = useState("");
 
-  // ── Galerie ───────────────────────────────────────────────────────────────
   const [photoAgrandie, setPhotoAgrandie] = useState(null);
-
-  // ── Édition ───────────────────────────────────────────────────────────────
   const [editMode, setEditMode]     = useState(false);
   const [editForm, setEditForm]     = useState({});
   const [editPhotos, setEditPhotos] = useState([]);
@@ -85,15 +91,21 @@ export default function MapPage({ setEcran }) {
       setMaisons(data);
 
       const uid = auth.currentUser?.uid;
+      const email = auth.currentUser?.email;
+
       if (uid) {
-        // ✅ Récupère le numéro WhatsApp depuis le profil Firestore
+        // ✅ Compte principal : propriétaire de TOUTES les maisons
+        if (email === "azerty1920092034@gmail.com") {
+          setEstProprietaire(true);
+          return;
+        }
+
         const userSnap = await getDoc(doc(db, "users", uid));
         const userWpVal = userSnap.exists()
           ? userSnap.data().whatsapp?.replace(/[\s\+]/g, "") || ""
           : "";
         if (userWpVal) setUserWp(userWpVal);
 
-        // ✅ Est propriétaire si : uid correspond OU numéro whatsapp correspond
         const owns = data.some((m) =>
           m.proprietaireId === uid ||
           (userWpVal && (m.whatsapp || m.WhatsApp)?.replace(/[\s\+]/g, "") === userWpVal)
@@ -104,13 +116,7 @@ export default function MapPage({ setEcran }) {
   };
 
   useEffect(() => { loadData(); }, []);
-  useEffect(() => {
-  setTimeout(() => {
-    window.dispatchEvent(new Event("resize"));
-  }, 100);
-}, []);
 
-  // ── Ouvre l'édition ───────────────────────────────────────────────────────
   const openEdit = (m) => {
     setEditForm({
       nom:         m.nom         || "",
@@ -132,8 +138,7 @@ export default function MapPage({ setEcran }) {
     const files   = Array.from(e.target.files);
     const restant = 6 - editPhotos.length - newFiles.length;
     if (restant <= 0) return setEditError("❌ Maximum 6 photos atteint.");
-    const ajout  = files.slice(0, restant);
-    setNewFiles((prev) => [...prev, ...ajout]);
+    setNewFiles((prev) => [...prev, ...files.slice(0, restant)]);
     setEditError("");
   };
 
@@ -196,9 +201,12 @@ export default function MapPage({ setEcran }) {
     return okQ && okT && okC;
   });
 
-  // ✅ La maison est "mienne" si : uid correspond OU numéro whatsapp correspond
   const uid = auth.currentUser?.uid;
+  const email = auth.currentUser?.email;
+  const isSuperOwner = email === "azerty1920092034@gmail.com";
+
   const isMine = selected && (
+    isSuperOwner ||
     selected.proprietaireId === uid ||
     (userWp && (selected.whatsapp || selected.WhatsApp)?.replace(/[\s\+]/g, "") === userWp)
   );
@@ -230,7 +238,6 @@ export default function MapPage({ setEcran }) {
   return (
     <div style={{ position: "relative", height: "100vh", width: "100%" }}>
 
-      {/* ── Suppression overlay ── */}
       {suppression && (
         <div style={{ position: "absolute", inset: 0, zIndex: 2000,
           display: "flex", alignItems: "center", justifyContent: "center",
@@ -243,7 +250,6 @@ export default function MapPage({ setEcran }) {
         </div>
       )}
 
-      {/* ── Photo agrandie (lightbox) ── */}
       {photoAgrandie && (
         <div onClick={() => setPhotoAgrandie(null)}
           style={{ position: "fixed", inset: 0, zIndex: 3000,
@@ -280,20 +286,31 @@ export default function MapPage({ setEcran }) {
           </select>
         </div>
         <button onClick={() => setEcran("choix")}
-  style={{ padding: "6px 12px", background: "#fee2e2", color: "#dc2626",
-    border: "none", borderRadius: "8px", cursor: "pointer",
-    fontSize: "13px", alignSelf: "flex-end" }}>
-  Quitter
-</button>
+          style={{ padding: "6px 12px", background: "#fee2e2", color: "#dc2626",
+            border: "none", borderRadius: "8px", cursor: "pointer",
+            fontSize: "13px", alignSelf: "flex-end" }}>
+          Quitter
+        </button>
       </div>
 
-      {/* ── Carte ── */}
+      {/* ── Carte avec meilleur TileLayer ── */}
       <ErrorBoundary>
-        <MapContainer key="map" center={[6.3654, 2.4183]} zoom={13}
+        <MapContainer center={[6.3654, 2.4183]} zoom={13}
           style={{ height: "100%", width: "100%" }}>
-          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+
+          {/* ✅ MapResizer corrige la carte floue quand elle est cachée puis affichée */}
+          <MapResizer />
+
+          {/* ✅ Meilleur TileLayer : CartoDB Voyager — voies très détaillées au zoom */}
+          <TileLayer
+            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org">OpenStreetMap</a> &copy; <a href="https://carto.com">CARTO</a>'
+            maxZoom={20}
+          />
+
           {!suppression && filtrees.map((m) => {
-            const estMaMaison = 
+            const estMaMaison =
+              isSuperOwner ||
               m.proprietaireId === uid ||
               (userWp && (m.whatsapp || m.WhatsApp)?.replace(/[\s\+]/g, "") === userWp);
             return (
@@ -307,8 +324,7 @@ export default function MapPage({ setEcran }) {
                   try { await updateDoc(doc(db, "maisons", m.id), { vues: increment(1) }); } catch {}
                 } }}>
                 <Tooltip permanent direction="top" offset={[0, -10]}
-                  className="leaflet-tooltip-nom"
-                  opacity={1}>
+                  className="leaflet-tooltip-nom" opacity={1}>
                   {m.nom || "Propriétaire"}
                 </Tooltip>
               </Marker>
@@ -333,10 +349,7 @@ export default function MapPage({ setEcran }) {
         </div>
       </div>
 
-    
-      {/* ════════════════════════════════════════════════════════════════════ */}
       {/* ── FICHE MAISON ── */}
-      {/* ════════════════════════════════════════════════════════════════════ */}
       {selected && !showReview && !editMode && (
         <div style={{ position: "absolute", bottom: "20px", left: "50%",
           transform: "translateX(-50%)", zIndex: 1000,
@@ -366,7 +379,6 @@ export default function MapPage({ setEcran }) {
             </p>
           </div>
 
-          {/* ── Galerie photos ── */}
           {(() => {
             const photos = getPhotos(selected);
             if (!photos.length) return null;
@@ -392,7 +404,6 @@ export default function MapPage({ setEcran }) {
             );
           })()}
 
-          {/* ── Vidéo ── */}
           {selected.video && (
             <div style={{ padding: "0 16px 8px" }}>
               <p style={{ margin: "0 0 6px", fontSize: "12px",
@@ -442,9 +453,7 @@ export default function MapPage({ setEcran }) {
         </div>
       )}
 
-      {/* ════════════════════════════════════════════════════════════════════ */}
       {/* ── FORMULAIRE ÉDITION ── */}
-      {/* ════════════════════════════════════════════════════════════════════ */}
       {selected && editMode && (
         <div style={{ position: "absolute", bottom: "20px", left: "50%",
           transform: "translateX(-50%)", zIndex: 1000,
@@ -489,7 +498,6 @@ export default function MapPage({ setEcran }) {
               </div>
             </div>
 
-            {/* ── Vidéo ── */}
             <div style={{ marginBottom: "12px", background: "#faf5ff",
               borderRadius: "8px", padding: "10px", border: "1px solid #e9d5ff" }}>
               <p style={{ margin: "0 0 6px", fontSize: "12px",
@@ -502,8 +510,7 @@ export default function MapPage({ setEcran }) {
                   <video src={selected.video} controls
                     style={{ width: "100%", borderRadius: "8px",
                       maxHeight: "140px", background: "#000", marginBottom: "6px" }} />
-                  <button
-                    onClick={() => setEditForm((f) => ({ ...f, _removeVideo: true }))}
+                  <button onClick={() => setEditForm((f) => ({ ...f, _removeVideo: true }))}
                     style={{ width: "100%", padding: "6px", background: "#fee2e2",
                       color: "#dc2626", border: "none", borderRadius: "6px",
                       fontSize: "12px", cursor: "pointer" }}>
@@ -515,8 +522,7 @@ export default function MapPage({ setEcran }) {
                   <video src={URL.createObjectURL(editForm._newVideo)} controls
                     style={{ width: "100%", borderRadius: "8px",
                       maxHeight: "140px", background: "#000", marginBottom: "6px" }} />
-                  <button
-                    onClick={() => setEditForm((f) => ({ ...f, _newVideo: null }))}
+                  <button onClick={() => setEditForm((f) => ({ ...f, _newVideo: null }))}
                     style={{ width: "100%", padding: "6px", background: "#fee2e2",
                       color: "#dc2626", border: "none", borderRadius: "6px",
                       fontSize: "12px", cursor: "pointer" }}>
@@ -538,7 +544,6 @@ export default function MapPage({ setEcran }) {
               )}
             </div>
 
-            {/* ── Gestion photos ── */}
             <div style={{ marginBottom: "12px" }}>
               <p style={{ margin: "0 0 6px", fontSize: "12px", color: "#555", fontWeight: "bold" }}>
                 📸 Photos ({editPhotos.length + newFiles.length}/6)
@@ -557,9 +562,7 @@ export default function MapPage({ setEcran }) {
                           width: "18px", height: "18px", background: "#dc2626",
                           color: "white", border: "none", borderRadius: "50%",
                           fontSize: "11px", cursor: "pointer", padding: 0,
-                          display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        ✕
-                      </button>
+                          display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
                     </div>
                   ))}
                 </div>
@@ -577,9 +580,7 @@ export default function MapPage({ setEcran }) {
                           width: "18px", height: "18px", background: "#dc2626",
                           color: "white", border: "none", borderRadius: "50%",
                           fontSize: "11px", cursor: "pointer", padding: 0,
-                          display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        ✕
-                      </button>
+                          display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
                     </div>
                   ))}
                 </div>
@@ -593,8 +594,7 @@ export default function MapPage({ setEcran }) {
                     fontSize: "12px", color: "#16a34a", cursor: "pointer" }}>
                     + Ajouter des photos
                     <input type="file" accept="image/*" multiple
-                      onChange={handleNewFiles}
-                      style={{ display: "none" }} />
+                      onChange={handleNewFiles} style={{ display: "none" }} />
                   </label>
                   <p style={{ fontSize: "11px", color: "#999", margin: "4px 0 0" }}>
                     Maximum 6 photos au total
@@ -631,7 +631,6 @@ export default function MapPage({ setEcran }) {
         </div>
       )}
 
-      {/* ── Formulaire avis ── */}
       {selected && showReview && (
         <div style={{ position: "absolute", bottom: "20px", left: "50%",
           transform: "translateX(-50%)", zIndex: 1000,
