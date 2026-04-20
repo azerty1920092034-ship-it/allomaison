@@ -4,10 +4,10 @@ import { collection, getDocs, doc, updateDoc, deleteDoc } from "firebase/firesto
 import { signOut } from "firebase/auth";
 
 export default function AdminPage() {
-  const [maisons, setMaisons]   = useState([]);
-  const [avis, setAvis]         = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [onglet, setOnglet]     = useState("stats"); // "stats" | "maisons" | "avis"
+  const [maisons, setMaisons]     = useState([]);
+  const [avis, setAvis]           = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [onglet, setOnglet]       = useState("stats");
   const [recherche, setRecherche] = useState("");
 
   useEffect(() => {
@@ -24,9 +24,22 @@ export default function AdminPage() {
   }, []);
 
   // ── Totaux ────────────────────────────────────────────────────────────────
-  const totalVues       = maisons.reduce((s, m) => s + (m.vues || 0), 0);
-  const totalWhatsapp   = maisons.reduce((s, m) => s + (m.clicsWhatsapp || 0), 0);
-  const proprietaires   = [...new Set(maisons.map((m) => m.proprietaireId))].length;
+  const totalVues     = maisons.reduce((s, m) => s + (m.vues || 0), 0);
+  const totalWhatsapp = maisons.reduce((s, m) => s + (m.clicsWhatsapp || 0), 0);
+  const proprietaires = [...new Set(maisons.map((m) => m.proprietaireId))].length;
+  const totalLouees   = maisons.filter((m) => !m.disponible).length;
+
+  // ── Locations par mois ────────────────────────────────────────────────────
+  const locationParMois = maisons
+    .filter((m) => !m.disponible && m.dateLocation)
+    .reduce((acc, m) => {
+      try {
+        const date = m.dateLocation.toDate();
+        const cle  = date.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+        acc[cle] = (acc[cle] || 0) + 1;
+      } catch {}
+      return acc;
+    }, {});
 
   // ── Maisons filtrées ──────────────────────────────────────────────────────
   const maisonsFiltrees = maisons.filter((m) =>
@@ -37,7 +50,7 @@ export default function AdminPage() {
     m.nom?.toLowerCase().includes(recherche.toLowerCase())
   );
 
-  // ── Top maisons par vues ──────────────────────────────────────────────────
+  // ── Top 5 par vues ────────────────────────────────────────────────────────
   const topMaisons = [...maisons]
     .sort((a, b) => (b.vues || 0) - (a.vues || 0))
     .slice(0, 5);
@@ -56,10 +69,10 @@ export default function AdminPage() {
   // ── Helpers ───────────────────────────────────────────────────────────────
   const card = (titre, valeur, couleur, emoji) => (
     <div style={{ background: "white", borderRadius: "16px", padding: "20px 16px",
-      boxShadow: "0 4px 20px rgba(0,0,0,0.08)", flex: 1, minWidth: "130px",
+      boxShadow: "0 4px 20px rgba(0,0,0,0.08)", flex: 1, minWidth: "120px",
       borderTop: "4px solid " + couleur, textAlign: "center" }}>
-      <p style={{ fontSize: "28px", margin: "0 0 6px" }}>{emoji}</p>
-      <p style={{ fontSize: "26px", fontWeight: "bold", color: couleur, margin: "0 0 4px" }}>{valeur}</p>
+      <p style={{ fontSize: "26px", margin: "0 0 6px" }}>{emoji}</p>
+      <p style={{ fontSize: "24px", fontWeight: "bold", color: couleur, margin: "0 0 4px" }}>{valeur}</p>
       <p style={{ fontSize: "12px", color: "#666", margin: 0 }}>{titre}</p>
     </div>
   );
@@ -69,8 +82,7 @@ export default function AdminPage() {
       style={{ padding: "8px 18px", borderRadius: "8px", border: "none",
         cursor: "pointer", fontSize: "13px", fontWeight: "bold",
         background: onglet === id ? "#16a34a" : "#f3f4f6",
-        color: onglet === id ? "white" : "#555",
-        transition: "all .2s" }}>
+        color: onglet === id ? "white" : "#555", transition: "all .2s" }}>
       {label}
     </button>
   );
@@ -107,12 +119,14 @@ export default function AdminPage() {
           {card("Propriétaires", proprietaires, "#0284c7", "👤")}
           {card("Vues totales", totalVues, "#7c3aed", "👁️")}
           {card("Clics WhatsApp", totalWhatsapp, "#25d366", "📲")}
+          {card("Louées", totalLouees, "#dc2626", "🔑")}
           {card("Avis", avis.length, "#f59e0b", "⭐")}
         </div>
 
         {/* ── Onglets ── */}
-        <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>
+        <div style={{ display: "flex", gap: "8px", marginBottom: "20px", flexWrap: "wrap" }}>
           {tab("stats", "📊 Statistiques")}
+          {tab("locations", "🔑 Locations")}
           {tab("maisons", "🏡 Maisons")}
           {tab("avis", "⭐ Avis")}
         </div>
@@ -162,31 +176,125 @@ export default function AdminPage() {
                 📈 Taux de conversion global
               </h2>
               <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
-                <div style={{ flex: 1, minWidth: "160px", background: "#f0fdf4",
+                <div style={{ flex: 1, minWidth: "140px", background: "#f0fdf4",
                   borderRadius: "12px", padding: "16px", textAlign: "center" }}>
-                  <p style={{ margin: "0 0 4px", fontSize: "28px", fontWeight: "bold", color: "#7c3aed" }}>
+                  <p style={{ margin: "0 0 4px", fontSize: "26px", fontWeight: "bold", color: "#7c3aed" }}>
                     {totalVues}
                   </p>
                   <p style={{ margin: 0, fontSize: "12px", color: "#666" }}>Vues totales</p>
                 </div>
-                <div style={{ flex: 1, minWidth: "160px", background: "#f0fdf4",
+                <div style={{ flex: 1, minWidth: "140px", background: "#f0fdf4",
                   borderRadius: "12px", padding: "16px", textAlign: "center" }}>
-                  <p style={{ margin: "0 0 4px", fontSize: "28px", fontWeight: "bold", color: "#25d366" }}>
+                  <p style={{ margin: "0 0 4px", fontSize: "26px", fontWeight: "bold", color: "#25d366" }}>
                     {totalWhatsapp}
                   </p>
                   <p style={{ margin: 0, fontSize: "12px", color: "#666" }}>Clics WhatsApp</p>
                 </div>
-                <div style={{ flex: 1, minWidth: "160px", background: "#f0fdf4",
+                <div style={{ flex: 1, minWidth: "140px", background: "#f0fdf4",
                   borderRadius: "12px", padding: "16px", textAlign: "center" }}>
-                  <p style={{ margin: "0 0 4px", fontSize: "28px", fontWeight: "bold", color: "#f59e0b" }}>
+                  <p style={{ margin: "0 0 4px", fontSize: "26px", fontWeight: "bold", color: "#f59e0b" }}>
                     {totalVues > 0 ? Math.round((totalWhatsapp / totalVues) * 100) : 0}%
                   </p>
-                  <p style={{ margin: 0, fontSize: "12px", color: "#666" }}>
-                    Taux vue → contact
+                  <p style={{ margin: 0, fontSize: "12px", color: "#666" }}>Taux vue → contact</p>
+                </div>
+                <div style={{ flex: 1, minWidth: "140px", background: "#fef2f2",
+                  borderRadius: "12px", padding: "16px", textAlign: "center" }}>
+                  <p style={{ margin: "0 0 4px", fontSize: "26px", fontWeight: "bold", color: "#dc2626" }}>
+                    {maisons.length > 0 ? Math.round((totalLouees / maisons.length) * 100) : 0}%
                   </p>
+                  <p style={{ margin: 0, fontSize: "12px", color: "#666" }}>Taux d'occupation</p>
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {/* ── ONGLET LOCATIONS ── */}
+        {onglet === "locations" && (
+          <div style={{ background: "white", borderRadius: "16px", padding: "20px 24px",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.08)" }}>
+            <h2 style={{ color: "#dc2626", fontSize: "16px", marginBottom: "6px" }}>
+              🔑 Locations confirmées par mois
+            </h2>
+            <p style={{ margin: "0 0 20px", fontSize: "13px", color: "#888" }}>
+              {totalLouees} maison{totalLouees > 1 ? "s" : ""} louée{totalLouees > 1 ? "s" : ""} sur{" "}
+              {maisons.length} publiée{maisons.length > 1 ? "s" : ""}{" "}
+              ({maisons.length > 0 ? Math.round((totalLouees / maisons.length) * 100) : 0}% d'occupation)
+            </p>
+
+            {/* Graphique par mois */}
+            {Object.keys(locationParMois).length === 0 ? (
+              <div style={{ textAlign: "center", padding: "40px 0" }}>
+                <p style={{ fontSize: "40px", margin: "0 0 12px" }}>🔑</p>
+                <p style={{ color: "#999", fontSize: "14px" }}>
+                  Aucune location confirmée pour le moment.<br/>
+                  Les propriétaires doivent cliquer sur "Marquer comme loué"
+                  dans leur dashboard.
+                </p>
+              </div>
+            ) : (
+              <div style={{ marginBottom: "24px" }}>
+                {Object.entries(locationParMois)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([mois, count]) => {
+                    const max = Math.max(...Object.values(locationParMois));
+                    return (
+                      <div key={mois} style={{ display: "flex", alignItems: "center",
+                        gap: "12px", padding: "8px 0", borderBottom: "1px solid #f3f4f6" }}>
+                        <span style={{ minWidth: "130px", fontSize: "13px", color: "#555",
+                          textTransform: "capitalize" }}>{mois}</span>
+                        <div style={{ flex: 1, background: "#f3f4f6",
+                          borderRadius: "20px", height: "10px", overflow: "hidden" }}>
+                          <div style={{ width: `${(count / max) * 100}%`,
+                            height: "100%", background: "#dc2626",
+                            borderRadius: "20px", transition: "width .4s" }} />
+                        </div>
+                        <span style={{ fontSize: "14px", fontWeight: "bold",
+                          color: "#dc2626", minWidth: "20px", textAlign: "right" }}>
+                          {count}
+                        </span>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+
+            {/* Liste des maisons louées */}
+            <h3 style={{ fontSize: "14px", color: "#555", marginBottom: "12px" }}>
+              Maisons actuellement occupées ({totalLouees})
+            </h3>
+            {maisons.filter((m) => !m.disponible).length === 0 ? (
+              <p style={{ color: "#999", fontSize: "13px" }}>Aucune maison occupée.</p>
+            ) : (
+              maisons.filter((m) => !m.disponible).map((m) => (
+                <div key={m.id} style={{ display: "flex", alignItems: "center",
+                  gap: "12px", padding: "10px 0", borderBottom: "1px solid #f3f4f6" }}>
+                  {m.photo && (
+                    <img src={m.photo} alt="" style={{ width: "48px", height: "40px",
+                      borderRadius: "8px", objectFit: "cover" }} />
+                  )}
+                  <div style={{ flex: 1 }}>
+                    <p style={{ margin: 0, fontSize: "13px", fontWeight: "bold" }}>
+                      {m.type} — {m.quartier}
+                    </p>
+                    <p style={{ margin: 0, fontSize: "12px", color: "#888" }}>
+                      {m.nom || "?"} · {m.whatsapp}
+                    </p>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <span style={{ background: "#fee2e2", color: "#dc2626",
+                      padding: "2px 8px", borderRadius: "20px", fontSize: "11px",
+                      fontWeight: "bold" }}>🔴 Occupée</span>
+                    {m.dateLocation && (
+                      <p style={{ margin: "4px 0 0", fontSize: "11px", color: "#888" }}>
+                        {m.dateLocation.toDate().toLocaleDateString("fr-FR")}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         )}
 
