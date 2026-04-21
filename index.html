@@ -1,10 +1,13 @@
-<!doctype html>
+<<!doctype html>
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#16a34a" />
-    <meta name="description" content="Trouvez facilement une maison à louer à Cotonou et ses environs" />
+    <meta name="description" content="AlloMaison - Trouvez facilement une maison, studio ou chambre à louer à Cotonou, Godomey, Abomey-Calavi et environs au Bénin." />
+    <meta name="keywords" content="maison à louer Cotonou, chambre à louer Bénin, studio Godomey, location Abomey-Calavi, AlloMaison" />
+    <meta name="geo.region" content="BJ" />
+    <meta name="geo.placename" content="Cotonou, Bénin" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -14,13 +17,12 @@
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
     <link rel="manifest" href="/manifest.json" />
 
-    <title>AlloMaison</title>
+    <title>AlloMaison - Maisons à louer à Cotonou et environs</title>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
     <script>
-      // Enregistrement du Service Worker
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js')
