@@ -5,8 +5,13 @@ import { signOut } from "firebase/auth";
 export default function RoleChoice({ setEcran }) {
   const [installPrompt, setInstallPrompt] = useState(null);
   const [installed, setInstalled] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
 
   useEffect(() => {
+    // Détecte si mobile
+    setIsMobile(/Android|iPhone|iPad/i.test(navigator.userAgent));
+
     // Capture l'événement d'installation
     const handler = (e) => {
       e.preventDefault();
@@ -23,12 +28,16 @@ export default function RoleChoice({ setEcran }) {
   }, []);
 
   const handleInstall = async () => {
-    if (!installPrompt) return;
-    installPrompt.prompt();
-    const { outcome } = await installPrompt.userChoice;
-    if (outcome === "accepted") {
-      setInstalled(true);
-      setInstallPrompt(null);
+    if (installPrompt) {
+      installPrompt.prompt();
+      const { outcome } = await installPrompt.userChoice;
+      if (outcome === "accepted") {
+        setInstalled(true);
+        setInstallPrompt(null);
+      }
+    } else {
+      // Affiche le guide manuel
+      setShowGuide(true);
     }
   };
 
@@ -61,14 +70,12 @@ export default function RoleChoice({ setEcran }) {
           🏡 Mettre ma maison en ligne
         </button>
 
-        {/* Bouton installation PWA */}
-        {!installed && installPrompt && (
+        {/* Bouton installation */}
+        {!installed && (
           <button onClick={handleInstall}
             style={{ width: "100%", padding: "14px", marginBottom: "16px",
               background: "#7c3aed", color: "white", border: "none",
-              borderRadius: "12px", fontSize: "15px", cursor: "pointer",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              gap: "8px" }}>
+              borderRadius: "12px", fontSize: "15px", cursor: "pointer" }}>
             📲 Installer l'application
           </button>
         )}
@@ -78,6 +85,36 @@ export default function RoleChoice({ setEcran }) {
             background: "#f0fdf4", borderRadius: "10px",
             fontSize: "13px", color: "#16a34a" }}>
             ✅ Application installée !
+          </div>
+        )}
+
+        {/* Guide manuel pour mobile */}
+        {showGuide && (
+          <div style={{
+            marginBottom: "16px", padding: "14px",
+            background: "#f5f3ff", borderRadius: "12px",
+            fontSize: "13px", color: "#5b21b6", textAlign: "left",
+            border: "1px solid #ddd8fe"
+          }}>
+            <p style={{ fontWeight: "bold", marginBottom: "8px" }}>
+              📱 Comment installer :
+            </p>
+            {/Android/i.test(navigator.userAgent) ? (
+              <ol style={{ margin: 0, paddingLeft: "16px", lineHeight: "1.8" }}>
+                <li>Clique sur les <strong>3 points ⋮</strong> en haut à droite</li>
+                <li>Sélectionne <strong>"Ajouter à l'écran d'accueil"</strong></li>
+                <li>Clique <strong>"Ajouter"</strong> ✅</li>
+              </ol>
+            ) : (
+              <ol style={{ margin: 0, paddingLeft: "16px", lineHeight: "1.8" }}>
+                <li>Clique sur <strong>Partager</strong> 📤</li>
+                <li>Sélectionne <strong>"Sur l'écran d'accueil"</strong></li>
+                <li>Clique <strong>"Ajouter"</strong> ✅</li>
+              </ol>
+            )}
+            <p style={{ marginTop: "8px", fontSize: "12px", color: "#888" }}>
+              L'icône AlloMaison apparaîtra sur ton écran !
+            </p>
           </div>
         )}
 
