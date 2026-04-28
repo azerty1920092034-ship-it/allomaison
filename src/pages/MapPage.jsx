@@ -94,6 +94,15 @@ function ClusterLayer({ maisons, isMine, pointVert, pointOr, onSelect }) {
 }
 import ErrorBoundary from "../components/ErrorBoundary";
 
+// ── Composant qui recentre la carte dynamiquement ────────────────────────────
+function MapCentrer({ centre, zoom }) {
+  const map = useMap();
+  useEffect(() => {
+    map.setView(centre, zoom, { animate: true });
+  }, [centre, zoom]);
+  return null;
+}
+
 const CLOUDINARY_CLOUD  = "dz3yafimu";
 const CLOUDINARY_PRESET = "allomaison_upload";
 
@@ -122,6 +131,8 @@ const types     = ["Tous", "Chambre salon", "Entree couchee", "Studio", "Maison 
 
 export default function MapPage({ setEcran }) {
   const [maisons, setMaisons]         = useState([]);
+  const [carteCentre, setCarteCentre] = useState([6.3654, 2.4183]); // centre par défaut Cotonou
+  const [carteZoom, setCarteZoom]     = useState(13);
   const [quartier, setQuartier]       = useState("Tous");
   const [type, setType]               = useState("Tous");
   const [selected, setSelected]       = useState(null);
@@ -151,6 +162,31 @@ export default function MapPage({ setEcran }) {
           : "";
         setUserWp(wp);
       }
+
+      // ── Centrer sur la zone avec le plus de maisons ──────────────────────
+      const valides = snap.docs
+        .map((d) => d.data())
+        .filter((m) => !isNaN(parseFloat(m.lat)) && !isNaN(parseFloat(m.lng)));
+
+      if (valides.length > 0) {
+        // Diviser la carte en zones de 0.02° (~2km) et trouver la plus dense
+        const zones = {};
+        valides.forEach((m) => {
+          const zLat = Math.round(parseFloat(m.lat) / 0.02) * 0.02;
+          const zLng = Math.round(parseFloat(m.lng) / 0.02) * 0.02;
+          const cle  = `${zLat},${zLng}`;
+          zones[cle] = (zones[cle] || 0) + 1;
+        });
+
+        // Zone la plus dense
+        const meilleureCle = Object.entries(zones)
+          .sort((a, b) => b[1] - a[1])[0][0];
+        const [zLat, zLng] = meilleureCle.split(",").map(Number);
+
+        setCarteCentre([zLat, zLng]);
+        setCarteZoom(15); // zoom plus précis sur la zone dense
+      }
+
     } catch (e) { console.error(e); }
   };
 
@@ -322,9 +358,10 @@ export default function MapPage({ setEcran }) {
 
       {/* ── Carte ── */}
       <ErrorBoundary>
-        <MapContainer key="map" center={[6.3654, 2.4183]} zoom={13}
+        <MapContainer key="map" center={carteCentre} zoom={carteZoom}
           style={{ height: "100%", width: "100%" }}>
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+          <MapCentrer centre={carteCentre} zoom={carteZoom} />
           {!suppression && (
             <ClusterLayer
               maisons={filtrees}
