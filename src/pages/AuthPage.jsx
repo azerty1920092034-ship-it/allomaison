@@ -4,67 +4,68 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword
 } from "firebase/auth";
-import { doc, setDoc, updateDoc } from "firebase/firestore";
+import { doc, setDoc } from "firebase/firestore";
 
 export default function AuthPage() {
-  const [isNew, setIsNew]             = useState(true);
-  const [email, setEmail]             = useState("");
-  const [whatsapp, setWhatsapp]       = useState("");
-  const [password, setPassword]       = useState("");
+  const [isNew, setIsNew] = useState(true);
+  const [email, setEmail] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading]         = useState(false);
-  const [error, setError]             = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleSubmit = async () => {
     setError("");
 
-    if (!email.trim())    return setError("❌ Entrez votre adresse email.");
+    if (!email.trim()) return setError("❌ Entrez votre adresse email.");
     if (!password.trim()) return setError("❌ Entrez un mot de passe.");
     if (password.length < 6) return setError("❌ Le mot de passe doit faire au moins 6 caractères.");
-
-    // ✅ Numéro WhatsApp obligatoire aussi à la CONNEXION
-    const wp = whatsapp.replace(/[\s\-\+]/g, "");
-    if (!/^\d{8,15}$/.test(wp))
-      return setError("❌ Numéro WhatsApp invalide. Ex: 22967000000");
 
     setLoading(true);
     try {
       if (isNew) {
-        // ── Inscription ───────────────────────────────────────────────────────
+        // Inscription — WhatsApp obligatoire seulement à l'inscription
+        const wp = whatsapp.replace(/[\s\-\+]/g, "");
+        if (!/^\d{8,15}$/.test(wp))
+          return setError("❌ Numéro WhatsApp invalide. Ex: 22967000000");
+
         const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
         await setDoc(doc(db, "users", cred.user.uid), {
-          email:     email.trim(),
-          whatsapp:  wp,
-          role:      "proprietaire",
+          email: email.trim(),
+          whatsapp: wp,
+          role: "proprietaire",
           dateInscription: new Date(),
-          actif:     true,
+          actif: true,
         });
       } else {
-        // ── Connexion : on se connecte puis on met à jour le numéro ──────────
+        // Connexion simple
         const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
-        // ✅ Sauvegarde/met à jour le numéro WhatsApp à chaque connexion
-        await setDoc(doc(db, "users", cred.user.uid), {
-          email:    email.trim(),
-          whatsapp: wp,
-        }, { merge: true }); // merge:true pour ne pas écraser les autres champs
+        if (whatsapp.trim()) {
+          const wp = whatsapp.replace(/[\s\-\+]/g, "");
+          await setDoc(doc(db, "users", cred.user.uid), {
+            email: email.trim(),
+            whatsapp: wp,
+          }, { merge: true });
+        }
       }
     } catch (e) {
       const msg = {
-        "auth/email-already-in-use":  "❌ Cet email est déjà utilisé. Connectez-vous.",
-        "auth/invalid-email":         "❌ Adresse email invalide.",
-        "auth/wrong-password":        "❌ Mot de passe incorrect.",
-        "auth/user-not-found":        "❌ Aucun compte avec cet email.",
-        "auth/too-many-requests":     "❌ Trop de tentatives. Réessayez dans quelques minutes.",
-        "auth/invalid-credential":    "❌ Email ou mot de passe incorrect.",
+        "auth/email-already-in-use": "❌ Cet email est déjà utilisé. Connectez-vous.",
+        "auth/invalid-email": "❌ Adresse email invalide.",
+        "auth/wrong-password": "❌ Mot de passe incorrect.",
+        "auth/user-not-found": "❌ Aucun compte avec cet email.",
+        "auth/too-many-requests": "❌ Trop de tentatives. Réessayez dans quelques minutes.",
+        "auth/invalid-credential": "❌ Email ou mot de passe incorrect.",
       }[e.code] || ("❌ Erreur : " + e.message);
       setError(msg);
     }
     setLoading(false);
   };
 
-  const inputStyle = (hasError) => ({
+  const inputStyle = () => ({
     width: "100%", padding: "11px 12px",
-    border: hasError ? "1px solid #dc2626" : "1px solid #ddd",
+    border: "1px solid #ddd",
     borderRadius: "8px", fontSize: "14px",
     boxSizing: "border-box", outline: "none",
     transition: "border-color .2s",
@@ -84,10 +85,10 @@ export default function AuthPage() {
           🏠 ALLOmaison
         </h1>
         <p style={{ textAlign: "center", color: "#666", marginBottom: "28px", fontSize: "14px" }}>
-          {isNew ? "Créer un compte propriétaire" : "Connexion propriétaire"}
+          {isNew ? "Créer un compte" : "Se connecter"}
         </p>
 
-        {/* ── Email ── */}
+        {/* Email */}
         <div style={{ marginBottom: "12px" }}>
           <p style={{ margin: "0 0 4px", fontSize: "13px", color: "#555" }}>Adresse email</p>
           <input
@@ -96,37 +97,36 @@ export default function AuthPage() {
             value={email}
             onChange={(e) => { setEmail(e.target.value); setError(""); }}
             onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-            style={inputStyle(false)}
+            style={inputStyle()}
           />
         </div>
 
-        {/* ── WhatsApp — affiché à l'inscription ET à la connexion ── */}
-        <div style={{ marginBottom: "12px" }}>
-          <p style={{ margin: "0 0 4px", fontSize: "13px", color: "#555" }}>
-            Numéro WhatsApp
-          </p>
-          <div style={{ position: "relative" }}>
-            <span style={{
-              position: "absolute", left: "12px", top: "50%",
-              transform: "translateY(-50%)", fontSize: "13px", color: "#888",
-            }}>🇧🇯</span>
-            <input
-              type="tel"
-              placeholder="Ex: 22967000000"
-              value={whatsapp}
-              onChange={(e) => { setWhatsapp(e.target.value); setError(""); }}
-              style={{ ...inputStyle(false), paddingLeft: "36px" }}
-            />
+        {/* WhatsApp — seulement à l'inscription */}
+        {isNew && (
+          <div style={{ marginBottom: "12px" }}>
+            <p style={{ margin: "0 0 4px", fontSize: "13px", color: "#555" }}>
+              Numéro WhatsApp <span style={{ color: "#dc2626" }}>*</span>
+            </p>
+            <div style={{ position: "relative" }}>
+              <span style={{
+                position: "absolute", left: "12px", top: "50%",
+                transform: "translateY(-50%)", fontSize: "13px", color: "#888",
+              }}>🇧🇯</span>
+              <input
+                type="tel"
+                placeholder="Ex: 22967000000"
+                value={whatsapp}
+                onChange={(e) => { setWhatsapp(e.target.value); setError(""); }}
+                style={{ ...inputStyle(), paddingLeft: "36px" }}
+              />
+            </div>
+            <p style={{ fontSize: "11px", color: "#999", margin: "4px 0 0" }}>
+              Les locataires vous contacteront via ce numéro.
+            </p>
           </div>
-          {/* ✅ Message différent selon inscription ou connexion */}
-          <p style={{ fontSize: "11px", color: "#999", margin: "4px 0 0" }}>
-            {isNew
-              ? "Les locataires vous contacteront via ce numéro."
-              : "Entrez le numéro utilisé lors de la publication de votre maison."}
-          </p>
-        </div>
+        )}
 
-        {/* ── Mot de passe ── */}
+        {/* Mot de passe */}
         <div style={{ marginBottom: "20px" }}>
           <p style={{ margin: "0 0 4px", fontSize: "13px", color: "#555" }}>Mot de passe</p>
           <div style={{ position: "relative" }}>
@@ -136,7 +136,7 @@ export default function AuthPage() {
               value={password}
               onChange={(e) => { setPassword(e.target.value); setError(""); }}
               onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-              style={{ ...inputStyle(false), paddingRight: "80px" }}
+              style={{ ...inputStyle(), paddingRight: "80px" }}
             />
             <button
               onClick={() => setShowPassword(!showPassword)}
@@ -171,20 +171,16 @@ export default function AuthPage() {
             fontSize: "15px", cursor: loading ? "not-allowed" : "pointer",
             fontWeight: "bold", transition: "background .2s",
           }}>
-          {loading
-            ? "⏳ Chargement..."
-            : isNew ? "Créer mon compte 🏡" : "Se connecter"}
+          {loading ? "⏳ Chargement..." : isNew ? "Créer mon compte 🏡" : "Se connecter"}
         </button>
 
         <p
-          onClick={() => { setIsNew(!isNew); setError(""); }}
+          onClick={() => { setIsNew(!isNew); setError(""); setWhatsapp(""); }}
           style={{
             textAlign: "center", marginTop: "18px", color: "#16a34a",
             cursor: "pointer", fontSize: "13px", textDecoration: "underline",
           }}>
-          {isNew
-            ? "Déjà un compte ? Se connecter"
-            : "Pas encore de compte ? S'inscrire"}
+          {isNew ? "Déjà un compte ? Se connecter" : "Pas encore de compte ? S'inscrire"}
         </p>
       </div>
     </div>
