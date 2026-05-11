@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { MapContainer, TileLayer, useMap } from "react-leaflet";
 import { db, auth } from "../firebase";
-import { collection, getDocs, deleteDoc, doc, updateDoc, increment, getDoc } from "firebase/firestore";
+import { collection, getDocs, deleteDoc, doc, updateDoc, increment, getDoc, addDoc, serverTimestamp } from "firebase/firestore";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import ReviewForm from "../components/ReviewForm";
@@ -12,7 +12,6 @@ function ClusterLayer({ maisons, isMine, pointVert, pointOr, onSelect }) {
   const groupRef = useRef(null);
 
   useEffect(() => {
-    // Charge leaflet.markercluster depuis CDN si pas déjà chargé
     const loadCluster = async () => {
       if (!window.L.MarkerClusterGroup) {
         await new Promise((resolve) => {
@@ -20,7 +19,6 @@ function ClusterLayer({ maisons, isMine, pointVert, pointOr, onSelect }) {
           link.rel = "stylesheet";
           link.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.min.css";
           document.head.appendChild(link);
-
           const script = document.createElement("script");
           script.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js";
           script.onload = resolve;
@@ -28,10 +26,8 @@ function ClusterLayer({ maisons, isMine, pointVert, pointOr, onSelect }) {
         });
       }
 
-      // Supprimer l'ancien groupe
       if (groupRef.current) map.removeLayer(groupRef.current);
 
-      // Créer le groupe cluster
       const group = window.L.markerClusterGroup({
         maxClusterRadius: 60,
         showCoverageOnHover: false,
@@ -39,42 +35,26 @@ function ClusterLayer({ maisons, isMine, pointVert, pointOr, onSelect }) {
           const count = cluster.getChildCount();
           const hasMine = cluster.getAllChildMarkers().some(m => m.options.isMine);
           return window.L.divIcon({
-            html: `<div style="
-              width: 38px; height: 38px;
-              background: ${hasMine ? "#f59e0b" : "#16a34a"};
-              border-radius: 50%;
-              border: 3px solid white;
-              box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-              display: flex; align-items: center; justify-content: center;
-              color: white; font-weight: bold; font-size: 14px;
-            ">${count}</div>`,
-            className: "",
-            iconSize: [38, 38],
-            iconAnchor: [19, 19],
+            html: `<div style="width:38px;height:38px;background:${hasMine ? "#f59e0b" : "#16a34a"};border-radius:50%;border:3px solid white;box-shadow:0 2px 10px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:14px;">${count}</div>`,
+            className: "", iconSize: [38, 38], iconAnchor: [19, 19],
           });
         },
       });
 
-      // Ajouter les markers
       maisons.forEach((m) => {
         const mine = isMine(m);
         const marker = window.L.marker(
           [parseFloat(m.lat), parseFloat(m.lng)],
           { icon: mine ? pointOr : pointVert, isMine: mine }
         );
-
-        // Tooltip au survol
         marker.bindTooltip(
           `<div style="font-size:12px;line-height:1.6">
             <strong>${m.nom || "Propriétaire"}</strong><br/>
             <span style="color:#555">${m.type} — ${m.quartier}</span><br/>
-            <span style="color:#16a34a;font-weight:bold">
-              ${Number(m.prix).toLocaleString()} FCFA ${m.paiement}
-            </span>
+            <span style="color:#16a34a;font-weight:bold">${Number(m.prix).toLocaleString()} FCFA ${m.paiement}</span>
           </div>`,
           { direction: "top", offset: [0, -10] }
         );
-
         marker.on("click", () => onSelect(m));
         group.addLayer(marker);
       });
@@ -84,22 +64,17 @@ function ClusterLayer({ maisons, isMine, pointVert, pointOr, onSelect }) {
     };
 
     if (maisons.length > 0) loadCluster();
-
-    return () => {
-      if (groupRef.current) map.removeLayer(groupRef.current);
-    };
+    return () => { if (groupRef.current) map.removeLayer(groupRef.current); };
   }, [maisons, map]);
 
   return null;
 }
+
 import ErrorBoundary from "../components/ErrorBoundary";
 
-// ── Composant qui recentre la carte dynamiquement ────────────────────────────
 function MapCentrer({ centre, zoom }) {
   const map = useMap();
-  useEffect(() => {
-    map.setView(centre, zoom, { animate: true });
-  }, [centre, zoom]);
+  useEffect(() => { map.setView(centre, zoom, { animate: true }); }, [centre, zoom]);
   return null;
 }
 
@@ -129,23 +104,24 @@ const pointOr = L.divIcon({
 const quartiers = ["Tous", "Cotonou", "Godomey", "Cocotomey", "Abomey-Calavi"];
 const types     = ["Tous", "Chambre salon", "Entree couchee", "Studio", "Maison entiere"];
 
-export default function MapPage({ setEcran }) {
-  const [maisons, setMaisons]         = useState([]);
-  const [carteCentre, setCarteCentre] = useState([6.3654, 2.4183]); // centre par défaut Cotonou
-  const [carteZoom, setCarteZoom]     = useState(13);
-  const [quartier, setQuartier]       = useState("Tous");
-  const [type, setType]               = useState("Tous");
-  const [selected, setSelected]       = useState(null);
-  const [showReview, setShowReview]   = useState(false);
-  const [suppression, setSuppression] = useState(false);
-  const [userWp, setUserWp]           = useState("");
+export default function MapPage({ setEcran, role }) {
+  const [maisons, setMaisons]             = useState([]);
+  const [carteCentre, setCarteCentre]     = useState([6.3654, 2.4183]);
+  const [carteZoom, setCarteZoom]         = useState(13);
+  const [quartier, setQuartier]           = useState("Tous");
+  const [type, setType]                   = useState("Tous");
+  const [selected, setSelected]           = useState(null);
+  const [showReview, setShowReview]       = useState(false);
+  const [suppression, setSuppression]     = useState(false);
+  const [userWp, setUserWp]               = useState("");
   const [photoAgrandie, setPhotoAgrandie] = useState(null);
-  const [editMode, setEditMode]       = useState(false);
-  const [editForm, setEditForm]       = useState({});
-  const [editPhotos, setEditPhotos]   = useState([]);
-  const [newFiles, setNewFiles]       = useState([]);
-  const [saving, setSaving]           = useState(false);
-  const [editError, setEditError]     = useState("");
+  const [editMode, setEditMode]           = useState(false);
+  const [editForm, setEditForm]           = useState({});
+  const [editPhotos, setEditPhotos]       = useState([]);
+  const [newFiles, setNewFiles]           = useState([]);
+  const [saving, setSaving]               = useState(false);
+  const [editError, setEditError]         = useState("");
+  const [showLouerConfirm, setShowLouerConfirm] = useState(false);
 
   const uid = auth.currentUser?.uid;
 
@@ -163,13 +139,11 @@ export default function MapPage({ setEcran }) {
         setUserWp(wp);
       }
 
-      // ── Centrer sur la zone avec le plus de maisons ──────────────────────
       const valides = snap.docs
         .map((d) => d.data())
         .filter((m) => !isNaN(parseFloat(m.lat)) && !isNaN(parseFloat(m.lng)));
 
       if (valides.length > 0) {
-        // Diviser la carte en zones de 0.02° (~2km) et trouver la plus dense
         const zones = {};
         valides.forEach((m) => {
           const zLat = Math.round(parseFloat(m.lat) / 0.02) * 0.02;
@@ -177,16 +151,11 @@ export default function MapPage({ setEcran }) {
           const cle  = `${zLat},${zLng}`;
           zones[cle] = (zones[cle] || 0) + 1;
         });
-
-        // Zone la plus dense
-        const meilleureCle = Object.entries(zones)
-          .sort((a, b) => b[1] - a[1])[0][0];
+        const meilleureCle = Object.entries(zones).sort((a, b) => b[1] - a[1])[0][0];
         const [zLat, zLng] = meilleureCle.split(",").map(Number);
-
         setCarteCentre([zLat, zLng]);
-        setCarteZoom(15); // zoom plus précis sur la zone dense
+        setCarteZoom(15);
       }
-
     } catch (e) { console.error(e); }
   };
 
@@ -199,6 +168,36 @@ export default function MapPage({ setEcran }) {
     m.proprietaireId === uid ||
     (userWp && (m.whatsapp || m.WhatsApp)?.replace(/[\s\+]/g, "") === userWp)
   );
+
+  // ── Marquer comme louée ──────────────────────────────────────────────────
+  const handleLouer = async () => {
+    if (!selected) return;
+    try {
+      await updateDoc(doc(db, "maisons", selected.id), {
+        disponible: false,
+        dateLouee: serverTimestamp(),
+        loueeNotifAdmin: true,
+      });
+      // Notifie l'admin
+      await addDoc(collection(db, "notifications_admin"), {
+        type: "maison_louee",
+        maisonId: selected.id,
+        maisonType: selected.type,
+        maisonQuartier: selected.quartier,
+        proprietaireId: uid,
+        dateNotif: serverTimestamp(),
+        lu: false,
+      });
+      setMaisons((prev) => prev.map((m) =>
+        m.id === selected.id ? { ...m, disponible: false } : m
+      ));
+      setSelected(null);
+      setShowLouerConfirm(false);
+      alert("✅ Votre maison a été marquée comme louée. Elle disparaîtra de la carte.");
+    } catch (e) {
+      alert("Erreur : " + e.message);
+    }
+  };
 
   const openEdit = (m) => {
     setEditForm({
@@ -269,7 +268,8 @@ export default function MapPage({ setEcran }) {
     const okQ = quartier === "Tous" || m.quartier === quartier;
     const okT = type === "Tous" || m.type === type;
     const okC = !isNaN(parseFloat(m.lat)) && !isNaN(parseFloat(m.lng));
-    return okQ && okT && okC;
+    const okD = m.disponible !== false;
+    return okQ && okT && okC && okD;
   });
 
   const getPhotos = (m) => m.photos?.length ? m.photos : (m.photo ? [m.photo] : []);
@@ -308,6 +308,36 @@ export default function MapPage({ setEcran }) {
             boxShadow: "0 4px 20px rgba(0,0,0,0.15)", textAlign: "center" }}>
             <p style={{ fontSize: "32px", margin: "0 0 10px" }}>🗑️</p>
             <p style={{ color: "#dc2626", fontWeight: "bold", margin: 0 }}>Suppression en cours...</p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Confirmation louer ── */}
+      {showLouerConfirm && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 3000,
+          background: "rgba(0,0,0,0.5)", display: "flex",
+          alignItems: "center", justifyContent: "center" }}>
+          <div style={{ background: "white", borderRadius: "16px", padding: "28px",
+            width: "min(300px, 90vw)", textAlign: "center",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }}>
+            <p style={{ fontSize: "40px", margin: "0 0 12px" }}>🎉</p>
+            <h3 style={{ color: "#16a34a", margin: "0 0 8px" }}>Maison louée ?</h3>
+            <p style={{ color: "#555", fontSize: "14px", margin: "0 0 20px" }}>
+              Votre maison sera retirée de la carte et l'administrateur sera notifié.
+            </p>
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button onClick={() => setShowLouerConfirm(false)}
+                style={{ flex: 1, padding: "10px", background: "#f3f4f6",
+                  color: "#555", border: "none", borderRadius: "10px", cursor: "pointer" }}>
+                Annuler
+              </button>
+              <button onClick={handleLouer}
+                style={{ flex: 1, padding: "10px", background: "#16a34a",
+                  color: "white", border: "none", borderRadius: "10px",
+                  cursor: "pointer", fontWeight: "bold" }}>
+                Confirmer
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -356,6 +386,18 @@ export default function MapPage({ setEcran }) {
         </button>
       </div>
 
+      {/* ── Bouton espace propriétaire ── */}
+      {role === "proprietaire" && (
+        <button onClick={() => setEcran("dashboard")}
+          style={{ position: "absolute", top: "80px", right: "16px", zIndex: 1000,
+            background: "#16a34a", color: "white", border: "none",
+            borderRadius: "12px", padding: "10px 14px", cursor: "pointer",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.2)", fontSize: "13px",
+            fontWeight: "bold" }}>
+          🏡 Mon espace
+        </button>
+      )}
+
       {/* ── Carte ── */}
       <ErrorBoundary>
         <MapContainer key="map" center={carteCentre} zoom={carteZoom}
@@ -395,7 +437,6 @@ export default function MapPage({ setEcran }) {
         </div>
       </div>
 
-      {/* ════════════════════════════════════════════════════════════════════ */}
       {/* ── FICHE MAISON ── */}
       {selected && !showReview && !editMode && (
         <div style={{ position: "absolute", bottom: "20px", left: "50%",
@@ -462,23 +503,21 @@ export default function MapPage({ setEcran }) {
           )}
 
           <div style={{ padding: "0 16px 16px" }}>
-            <a href={"https://wa.me/" + selected.whatsapp} target="_blank" rel="noreferrer"
-              onClick={async () => {
-                try { await updateDoc(doc(db, "maisons", selected.id), { clicsWhatsapp: increment(1) }); } catch {}
-              }}
-              style={{ display: "block", textAlign: "center", padding: "10px",
-                background: "#25d366", color: "white", borderRadius: "10px",
-                textDecoration: "none", fontWeight: "bold", marginBottom: "8px" }}>
-              Contacter sur WhatsApp
-            </a>
 
-            <button onClick={() => setShowReview(true)}
-              style={{ width: "100%", padding: "10px", background: "#fef3c7",
-                color: "#92400e", border: "none", borderRadius: "10px",
-                cursor: "pointer", fontSize: "14px", marginBottom: "8px" }}>
-              Laisser un avis
-            </button>
+            {/* Contacter WhatsApp — masqué pour le propriétaire */}
+            {!isMine(selected) && (
+              <a href={"https://wa.me/" + selected.whatsapp} target="_blank" rel="noreferrer"
+                onClick={async () => {
+                  try { await updateDoc(doc(db, "maisons", selected.id), { clicsWhatsapp: increment(1) }); } catch {}
+                }}
+                style={{ display: "block", textAlign: "center", padding: "10px",
+                  background: "#25d366", color: "white", borderRadius: "10px",
+                  textDecoration: "none", fontWeight: "bold", marginBottom: "8px" }}>
+                Contacter sur WhatsApp
+              </a>
+            )}
 
+            {/* Boutons propriétaire */}
             {isMine(selected) && (
               <>
                 <button onClick={() => openEdit(selected)}
@@ -487,19 +526,32 @@ export default function MapPage({ setEcran }) {
                     cursor: "pointer", fontSize: "14px", fontWeight: "bold", marginBottom: "8px" }}>
                   ✏️ Modifier ma maison
                 </button>
+                <button onClick={() => setShowLouerConfirm(true)}
+                  style={{ width: "100%", padding: "10px", background: "#f0fdf4",
+                    color: "#16a34a", border: "2px solid #16a34a", borderRadius: "10px",
+                    cursor: "pointer", fontSize: "14px", fontWeight: "bold", marginBottom: "8px" }}>
+                  🎉 Ma maison est louée
+                </button>
                 <button onClick={() => handleDelete(selected.id)}
                   style={{ width: "100%", padding: "10px", background: "#fee2e2",
                     color: "#dc2626", border: "none", borderRadius: "10px",
-                    cursor: "pointer", fontSize: "14px", fontWeight: "bold" }}>
+                    cursor: "pointer", fontSize: "14px", fontWeight: "bold", marginBottom: "8px" }}>
                   Supprimer ma maison
                 </button>
               </>
             )}
+
+            {/* Laisser un avis — tout en bas */}
+            <button onClick={() => setShowReview(true)}
+              style={{ width: "100%", padding: "10px", background: "#fef3c7",
+                color: "#92400e", border: "none", borderRadius: "10px",
+                cursor: "pointer", fontSize: "14px" }}>
+              Laisser un avis
+            </button>
           </div>
         </div>
       )}
 
-      {/* ════════════════════════════════════════════════════════════════════ */}
       {/* ── FORMULAIRE ÉDITION ── */}
       {selected && editMode && (
         <div style={{ position: "absolute", bottom: "20px", left: "50%",
