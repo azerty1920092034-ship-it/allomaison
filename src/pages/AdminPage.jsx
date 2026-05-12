@@ -1,35 +1,38 @@
 import { useState, useEffect } from "react";
 import { db, auth } from "../firebase";
-import { collection, getDocs, doc, updateDoc, deleteDoc } from "firebase/firestore";
+import { collection, getDocs, doc, updateDoc, deleteDoc, query, orderBy } from "firebase/firestore";
 import { signOut } from "firebase/auth";
 
 export default function AdminPage() {
-  const [maisons, setMaisons]     = useState([]);
-  const [avis, setAvis]           = useState([]);
-  const [loading, setLoading]     = useState(true);
-  const [onglet, setOnglet]       = useState("stats");
-  const [recherche, setRecherche] = useState("");
+  const [maisons, setMaisons]         = useState([]);
+  const [avis, setAvis]               = useState([]);
+  const [reservations, setReservations] = useState([]);
+  const [loading, setLoading]         = useState(true);
+  const [onglet, setOnglet]           = useState("stats");
+  const [recherche, setRecherche]     = useState("");
 
   useEffect(() => {
     const loadData = async () => {
-      const [maisonSnap, avisSnap] = await Promise.all([
+      const [maisonSnap, avisSnap, resaSnap] = await Promise.all([
         getDocs(collection(db, "maisons")),
         getDocs(collection(db, "avis")),
+        getDocs(query(collection(db, "reservations"), orderBy("dateCreation", "desc"))),
       ]);
       setMaisons(maisonSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
       setAvis(avisSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      setReservations(resaSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
       setLoading(false);
     };
     loadData();
   }, []);
 
-  // ── Totaux ────────────────────────────────────────────────────────────────
-  const totalVues     = maisons.reduce((s, m) => s + (m.vues || 0), 0);
-  const totalWhatsapp = maisons.reduce((s, m) => s + (m.clicsWhatsapp || 0), 0);
-  const proprietaires = [...new Set(maisons.map((m) => m.proprietaireId))].length;
-  const totalLouees   = maisons.filter((m) => !m.disponible).length;
+  const totalVues       = maisons.reduce((s, m) => s + (m.vues || 0), 0);
+  const totalWhatsapp   = maisons.reduce((s, m) => s + (m.clicsWhatsapp || 0), 0);
+  const proprietaires   = [...new Set(maisons.map((m) => m.proprietaireId))].length;
+  const totalLouees     = maisons.filter((m) => !m.disponible).length;
+  const totalReservations = reservations.length;
+  const resaEnAttente   = reservations.filter(r => r.statut === "en_attente").length;
 
-  // ── Locations par mois ────────────────────────────────────────────────────
   const locationParMois = maisons
     .filter((m) => !m.disponible && m.dateLocation)
     .reduce((acc, m) => {
@@ -41,7 +44,6 @@ export default function AdminPage() {
       return acc;
     }, {});
 
-  // ── Maisons filtrées ──────────────────────────────────────────────────────
   const maisonsFiltrees = maisons.filter((m) =>
     !recherche ||
     m.type?.toLowerCase().includes(recherche.toLowerCase()) ||
@@ -50,10 +52,7 @@ export default function AdminPage() {
     m.nom?.toLowerCase().includes(recherche.toLowerCase())
   );
 
-  // ── Top 5 par vues ────────────────────────────────────────────────────────
-  const topMaisons = [...maisons]
-    .sort((a, b) => (b.vues || 0) - (a.vues || 0))
-    .slice(0, 5);
+  const topMaisons = [...maisons].sort((a, b) => (b.vues || 0) - (a.vues || 0)).slice(0, 5);
 
   const handleDisponibilite = async (m) => {
     await updateDoc(doc(db, "maisons", m.id), { disponible: !m.disponible });
@@ -66,7 +65,20 @@ export default function AdminPage() {
     setMaisons((prev) => prev.filter((m) => m.id !== id));
   };
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  const resaBadgeLabel = (statut) => ({
+    en_attente: "⏳ En attente",
+    acceptee:   "✅ Acceptée",
+    refusee:    "❌ Refusée",
+    autre_date: "📅 Autre date",
+  }[statut] || statut);
+
+  const resaBadgeColor = (statut) => ({
+    en_attente: { color: "#d97706", bg: "#fffbeb" },
+    acceptee:   { color: "#16a34a", bg: "#f0fdf4" },
+    refusee:    { color: "#dc2626", bg: "#fef2f2" },
+    autre_date: { color: "#7c3aed", bg: "#faf5ff" },
+  }[statut] || { color: "#555", bg: "#f3f4f6" });
+
   const card = (titre, valeur, couleur, emoji) => (
     <div style={{ background: "white", borderRadius: "16px", padding: "20px 16px",
       boxShadow: "0 4px 20px rgba(0,0,0,0.08)", flex: 1, minWidth: "120px",
@@ -77,13 +89,21 @@ export default function AdminPage() {
     </div>
   );
 
-  const tab = (id, label) => (
+  const tab = (id, label, badge = 0) => (
     <button onClick={() => setOnglet(id)}
       style={{ padding: "8px 18px", borderRadius: "8px", border: "none",
-        cursor: "pointer", fontSize: "13px", fontWeight: "bold",
+        cursor: "pointer", fontSize: "13px", fontWeight: "bold", position: "relative",
         background: onglet === id ? "#16a34a" : "#f3f4f6",
         color: onglet === id ? "white" : "#555", transition: "all .2s" }}>
       {label}
+      {badge > 0 && (
+        <span style={{ position: "absolute", top: "-6px", right: "-6px",
+          background: "#dc2626", color: "white", borderRadius: "50%",
+          width: "18px", height: "18px", fontSize: "11px",
+          display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {badge}
+        </span>
+      )}
     </button>
   );
 
@@ -97,13 +117,11 @@ export default function AdminPage() {
     <div style={{ minHeight: "100vh", background: "#f0fdf4", padding: "20px" }}>
       <div style={{ maxWidth: "960px", margin: "0 auto" }}>
 
-        {/* ── En-tête ── */}
+        {/* En-tête */}
         <div style={{ display: "flex", justifyContent: "space-between",
           alignItems: "center", marginBottom: "24px" }}>
           <div>
-            <h1 style={{ color: "#16a34a", margin: "0 0 4px", fontSize: "22px" }}>
-              🏠 ALLOmaison Admin
-            </h1>
+            <h1 style={{ color: "#16a34a", margin: "0 0 4px", fontSize: "22px" }}>🏠 ALLOmaison Admin</h1>
             <p style={{ color: "#666", margin: 0, fontSize: "13px" }}>Tableau de bord</p>
           </div>
           <button onClick={() => signOut(auth)}
@@ -113,29 +131,29 @@ export default function AdminPage() {
           </button>
         </div>
 
-        {/* ── Cartes stats ── */}
+        {/* Cartes stats */}
         <div style={{ display: "flex", gap: "12px", marginBottom: "24px", flexWrap: "wrap" }}>
           {card("Maisons", maisons.length, "#16a34a", "🏡")}
           {card("Propriétaires", proprietaires, "#0284c7", "👤")}
           {card("Vues totales", totalVues, "#7c3aed", "👁️")}
           {card("Clics WhatsApp", totalWhatsapp, "#25d366", "📲")}
           {card("Louées", totalLouees, "#dc2626", "🔑")}
+          {card("Réservations", totalReservations, "#1d4ed8", "📅")}
           {card("Avis", avis.length, "#f59e0b", "⭐")}
         </div>
 
-        {/* ── Onglets ── */}
+        {/* Onglets */}
         <div style={{ display: "flex", gap: "8px", marginBottom: "20px", flexWrap: "wrap" }}>
           {tab("stats", "📊 Statistiques")}
           {tab("locations", "🔑 Locations")}
+          {tab("reservations", "📅 Réservations", resaEnAttente)}
           {tab("maisons", "🏡 Maisons")}
           {tab("avis", "⭐ Avis")}
         </div>
 
-        {/* ══════════════════════════════════════════════════════════════════ */}
-        {/* ── ONGLET STATS ── */}
+        {/* ONGLET STATS */}
         {onglet === "stats" && (
           <div>
-            {/* Top 5 maisons les plus vues */}
             <div style={{ background: "white", borderRadius: "16px", padding: "20px 24px",
               boxShadow: "0 4px 20px rgba(0,0,0,0.08)", marginBottom: "20px" }}>
               <h2 style={{ color: "#7c3aed", fontSize: "16px", marginBottom: "16px" }}>
@@ -145,8 +163,7 @@ export default function AdminPage() {
                 <div key={m.id} style={{ display: "flex", alignItems: "center",
                   gap: "12px", padding: "10px 0",
                   borderBottom: i < 4 ? "1px solid #f3f4f6" : "none" }}>
-                  <span style={{ fontSize: "18px", minWidth: "28px",
-                    color: i === 0 ? "#f59e0b" : "#999" }}>
+                  <span style={{ fontSize: "18px", minWidth: "28px", color: i === 0 ? "#f59e0b" : "#999" }}>
                     {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`}
                   </span>
                   <div style={{ flex: 1 }}>
@@ -169,48 +186,31 @@ export default function AdminPage() {
               ))}
             </div>
 
-            {/* Taux de conversion global */}
             <div style={{ background: "white", borderRadius: "16px", padding: "20px 24px",
               boxShadow: "0 4px 20px rgba(0,0,0,0.08)" }}>
               <h2 style={{ color: "#16a34a", fontSize: "16px", marginBottom: "16px" }}>
                 📈 Taux de conversion global
               </h2>
               <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
-                <div style={{ flex: 1, minWidth: "140px", background: "#f0fdf4",
-                  borderRadius: "12px", padding: "16px", textAlign: "center" }}>
-                  <p style={{ margin: "0 0 4px", fontSize: "26px", fontWeight: "bold", color: "#7c3aed" }}>
-                    {totalVues}
-                  </p>
-                  <p style={{ margin: 0, fontSize: "12px", color: "#666" }}>Vues totales</p>
-                </div>
-                <div style={{ flex: 1, minWidth: "140px", background: "#f0fdf4",
-                  borderRadius: "12px", padding: "16px", textAlign: "center" }}>
-                  <p style={{ margin: "0 0 4px", fontSize: "26px", fontWeight: "bold", color: "#25d366" }}>
-                    {totalWhatsapp}
-                  </p>
-                  <p style={{ margin: 0, fontSize: "12px", color: "#666" }}>Clics WhatsApp</p>
-                </div>
-                <div style={{ flex: 1, minWidth: "140px", background: "#f0fdf4",
-                  borderRadius: "12px", padding: "16px", textAlign: "center" }}>
-                  <p style={{ margin: "0 0 4px", fontSize: "26px", fontWeight: "bold", color: "#f59e0b" }}>
-                    {totalVues > 0 ? Math.round((totalWhatsapp / totalVues) * 100) : 0}%
-                  </p>
-                  <p style={{ margin: 0, fontSize: "12px", color: "#666" }}>Taux vue → contact</p>
-                </div>
-                <div style={{ flex: 1, minWidth: "140px", background: "#fef2f2",
-                  borderRadius: "12px", padding: "16px", textAlign: "center" }}>
-                  <p style={{ margin: "0 0 4px", fontSize: "26px", fontWeight: "bold", color: "#dc2626" }}>
-                    {maisons.length > 0 ? Math.round((totalLouees / maisons.length) * 100) : 0}%
-                  </p>
-                  <p style={{ margin: 0, fontSize: "12px", color: "#666" }}>Taux d'occupation</p>
-                </div>
+                {[
+                  { val: totalVues, label: "Vues totales", color: "#7c3aed" },
+                  { val: totalWhatsapp, label: "Clics WhatsApp", color: "#25d366" },
+                  { val: totalVues > 0 ? Math.round((totalWhatsapp / totalVues) * 100) + "%" : "0%", label: "Taux vue → contact", color: "#f59e0b" },
+                  { val: maisons.length > 0 ? Math.round((totalLouees / maisons.length) * 100) + "%" : "0%", label: "Taux d'occupation", color: "#dc2626" },
+                  { val: totalReservations, label: "Réservations", color: "#1d4ed8" },
+                ].map(({ val, label, color }) => (
+                  <div key={label} style={{ flex: 1, minWidth: "120px", background: "#f0fdf4",
+                    borderRadius: "12px", padding: "16px", textAlign: "center" }}>
+                    <p style={{ margin: "0 0 4px", fontSize: "26px", fontWeight: "bold", color }}>{val}</p>
+                    <p style={{ margin: 0, fontSize: "12px", color: "#666" }}>{label}</p>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
         )}
 
-        {/* ══════════════════════════════════════════════════════════════════ */}
-        {/* ── ONGLET LOCATIONS ── */}
+        {/* ONGLET LOCATIONS */}
         {onglet === "locations" && (
           <div style={{ background: "white", borderRadius: "16px", padding: "20px 24px",
             boxShadow: "0 4px 20px rgba(0,0,0,0.08)" }}>
@@ -219,87 +219,90 @@ export default function AdminPage() {
             </h2>
             <p style={{ margin: "0 0 20px", fontSize: "13px", color: "#888" }}>
               {totalLouees} maison{totalLouees > 1 ? "s" : ""} louée{totalLouees > 1 ? "s" : ""} sur{" "}
-              {maisons.length} publiée{maisons.length > 1 ? "s" : ""}{" "}
-              ({maisons.length > 0 ? Math.round((totalLouees / maisons.length) * 100) : 0}% d'occupation)
+              {maisons.length} publiée{maisons.length > 1 ? "s" : ""}
             </p>
-
-            {/* Graphique par mois */}
             {Object.keys(locationParMois).length === 0 ? (
               <div style={{ textAlign: "center", padding: "40px 0" }}>
                 <p style={{ fontSize: "40px", margin: "0 0 12px" }}>🔑</p>
-                <p style={{ color: "#999", fontSize: "14px" }}>
-                  Aucune location confirmée pour le moment.<br/>
-                  Les propriétaires doivent cliquer sur "Marquer comme loué"
-                  dans leur dashboard.
-                </p>
+                <p style={{ color: "#999", fontSize: "14px" }}>Aucune location confirmée.</p>
               </div>
             ) : (
-              <div style={{ marginBottom: "24px" }}>
-                {Object.entries(locationParMois)
-                  .sort((a, b) => b[1] - a[1])
-                  .map(([mois, count]) => {
-                    const max = Math.max(...Object.values(locationParMois));
-                    return (
-                      <div key={mois} style={{ display: "flex", alignItems: "center",
-                        gap: "12px", padding: "8px 0", borderBottom: "1px solid #f3f4f6" }}>
-                        <span style={{ minWidth: "130px", fontSize: "13px", color: "#555",
-                          textTransform: "capitalize" }}>{mois}</span>
-                        <div style={{ flex: 1, background: "#f3f4f6",
-                          borderRadius: "20px", height: "10px", overflow: "hidden" }}>
-                          <div style={{ width: `${(count / max) * 100}%`,
-                            height: "100%", background: "#dc2626",
-                            borderRadius: "20px", transition: "width .4s" }} />
-                        </div>
-                        <span style={{ fontSize: "14px", fontWeight: "bold",
-                          color: "#dc2626", minWidth: "20px", textAlign: "right" }}>
-                          {count}
-                        </span>
-                      </div>
-                    );
-                  })}
-              </div>
-            )}
-
-            {/* Liste des maisons louées */}
-            <h3 style={{ fontSize: "14px", color: "#555", marginBottom: "12px" }}>
-              Maisons actuellement occupées ({totalLouees})
-            </h3>
-            {maisons.filter((m) => !m.disponible).length === 0 ? (
-              <p style={{ color: "#999", fontSize: "13px" }}>Aucune maison occupée.</p>
-            ) : (
-              maisons.filter((m) => !m.disponible).map((m) => (
-                <div key={m.id} style={{ display: "flex", alignItems: "center",
-                  gap: "12px", padding: "10px 0", borderBottom: "1px solid #f3f4f6" }}>
-                  {m.photo && (
-                    <img src={m.photo} alt="" style={{ width: "48px", height: "40px",
-                      borderRadius: "8px", objectFit: "cover" }} />
-                  )}
-                  <div style={{ flex: 1 }}>
-                    <p style={{ margin: 0, fontSize: "13px", fontWeight: "bold" }}>
-                      {m.type} — {m.quartier}
-                    </p>
-                    <p style={{ margin: 0, fontSize: "12px", color: "#888" }}>
-                      {m.nom || "?"} · {m.whatsapp}
-                    </p>
+              Object.entries(locationParMois).sort((a, b) => b[1] - a[1]).map(([mois, count]) => {
+                const max = Math.max(...Object.values(locationParMois));
+                return (
+                  <div key={mois} style={{ display: "flex", alignItems: "center",
+                    gap: "12px", padding: "8px 0", borderBottom: "1px solid #f3f4f6" }}>
+                    <span style={{ minWidth: "130px", fontSize: "13px", color: "#555",
+                      textTransform: "capitalize" }}>{mois}</span>
+                    <div style={{ flex: 1, background: "#f3f4f6", borderRadius: "20px",
+                      height: "10px", overflow: "hidden" }}>
+                      <div style={{ width: `${(count / max) * 100}%`, height: "100%",
+                        background: "#dc2626", borderRadius: "20px", transition: "width .4s" }} />
+                    </div>
+                    <span style={{ fontSize: "14px", fontWeight: "bold",
+                      color: "#dc2626", minWidth: "20px", textAlign: "right" }}>{count}</span>
                   </div>
-                  <div style={{ textAlign: "right" }}>
-                    <span style={{ background: "#fee2e2", color: "#dc2626",
-                      padding: "2px 8px", borderRadius: "20px", fontSize: "11px",
-                      fontWeight: "bold" }}>🔴 Occupée</span>
-                    {m.dateLocation && (
-                      <p style={{ margin: "4px 0 0", fontSize: "11px", color: "#888" }}>
-                        {m.dateLocation.toDate().toLocaleDateString("fr-FR")}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         )}
 
-        {/* ══════════════════════════════════════════════════════════════════ */}
-        {/* ── ONGLET MAISONS ── */}
+        {/* ONGLET RÉSERVATIONS */}
+        {onglet === "reservations" && (
+          <div style={{ background: "white", borderRadius: "16px", padding: "20px 24px",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.08)" }}>
+            <h2 style={{ color: "#1d4ed8", fontSize: "16px", marginBottom: "16px" }}>
+              📅 Réservations ({reservations.length})
+              {resaEnAttente > 0 && (
+                <span style={{ marginLeft: "8px", background: "#fffbeb", color: "#d97706",
+                  padding: "2px 8px", borderRadius: "20px", fontSize: "12px" }}>
+                  {resaEnAttente} en attente
+                </span>
+              )}
+            </h2>
+            {reservations.length === 0 ? (
+              <p style={{ color: "#999", textAlign: "center" }}>Aucune réservation</p>
+            ) : (
+              reservations.map((r) => {
+                const badge = resaBadgeColor(r.statut);
+                return (
+                  <div key={r.id} style={{ borderBottom: "1px solid #f3f4f6", padding: "14px 0" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between",
+                      alignItems: "flex-start", marginBottom: "6px" }}>
+                      <div>
+                        <p style={{ margin: 0, fontWeight: "bold", fontSize: "13px" }}>
+                          {r.maisonType} — {r.maisonQuartier}
+                        </p>
+                        <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#888" }}>
+                          {r.dateCreation?.toDate?.()?.toLocaleDateString("fr-FR") || ""}
+                        </p>
+                      </div>
+                      <span style={{ background: badge.bg, color: badge.color,
+                        padding: "2px 8px", borderRadius: "20px", fontSize: "11px", fontWeight: "bold" }}>
+                        {resaBadgeLabel(r.statut)}
+                      </span>
+                    </div>
+                    <p style={{ margin: 0, fontSize: "12px", color: "#555" }}>
+                      👤 {r.locataireNom} · 📱 {r.locataireTelephone}
+                    </p>
+                    <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#888" }}>
+                      📅 Visite : {r.dateVisite}
+                      {r.dateProposee && <span> → Proposée : {r.dateProposee}</span>}
+                    </p>
+                    {r.message && (
+                      <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#666", fontStyle: "italic" }}>
+                        💬 "{r.message}"
+                      </p>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+
+        {/* ONGLET MAISONS */}
         {onglet === "maisons" && (
           <div style={{ background: "white", borderRadius: "16px", padding: "20px 24px",
             boxShadow: "0 4px 20px rgba(0,0,0,0.08)" }}>
@@ -313,12 +316,11 @@ export default function AdminPage() {
                 style={{ padding: "7px 12px", border: "1px solid #ddd",
                   borderRadius: "8px", fontSize: "13px", width: "180px" }} />
             </div>
-
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
                 <thead>
                   <tr style={{ background: "#f0fdf4" }}>
-                    {["Propriétaire", "Type", "Quartier", "Prix", "👁️ Vues", "📲 WA", "Statut", "Actions"].map((h) => (
+                    {["Propriétaire", "Type", "Quartier", "Prix", "👁️", "📲", "Statut", ""].map((h) => (
                       <th key={h} style={{ padding: "10px 8px", textAlign: "left",
                         borderBottom: "1px solid #e5e7eb", whiteSpace: "nowrap" }}>{h}</th>
                     ))}
@@ -356,9 +358,7 @@ export default function AdminPage() {
                         <button onClick={() => handleSupprimer(m.id)}
                           style={{ padding: "4px 10px", background: "#fee2e2",
                             color: "#dc2626", border: "none", borderRadius: "6px",
-                            cursor: "pointer", fontSize: "12px" }}>
-                          🗑️
-                        </button>
+                            cursor: "pointer", fontSize: "12px" }}>🗑️</button>
                       </td>
                     </tr>
                   ))}
@@ -368,8 +368,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* ══════════════════════════════════════════════════════════════════ */}
-        {/* ── ONGLET AVIS ── */}
+        {/* ONGLET AVIS */}
         {onglet === "avis" && (
           <div style={{ background: "white", borderRadius: "16px", padding: "20px 24px",
             boxShadow: "0 4px 20px rgba(0,0,0,0.08)" }}>
@@ -377,7 +376,7 @@ export default function AdminPage() {
               ⭐ Avis ({avis.length})
             </h2>
             {avis.length === 0 ? (
-              <p style={{ color: "#999", textAlign: "center" }}>Aucun avis pour le moment</p>
+              <p style={{ color: "#999", textAlign: "center" }}>Aucun avis</p>
             ) : (
               avis.map((a) => (
                 <div key={a.id} style={{ borderBottom: "1px solid #f3f4f6", padding: "12px 0" }}>
@@ -394,7 +393,6 @@ export default function AdminPage() {
             )}
           </div>
         )}
-
       </div>
     </div>
   );
