@@ -1,37 +1,54 @@
 import { useState, useEffect } from "react";
 import { db, auth } from "../firebase";
-import { collection, getDocs, doc, updateDoc, deleteDoc, query, orderBy } from "firebase/firestore";
+import { collection, getDocs, doc, updateDoc, deleteDoc,
+  query, orderBy, onSnapshot } from "firebase/firestore";
 import { signOut } from "firebase/auth";
 
 export default function AdminPage() {
-  const [maisons, setMaisons]         = useState([]);
-  const [avis, setAvis]               = useState([]);
+  const [maisons, setMaisons]           = useState([]);
+  const [avis, setAvis]                 = useState([]);
   const [reservations, setReservations] = useState([]);
-  const [loading, setLoading]         = useState(true);
-  const [onglet, setOnglet]           = useState("stats");
-  const [recherche, setRecherche]     = useState("");
+  const [loading, setLoading]           = useState(true);
+  const [onglet, setOnglet]             = useState("stats");
+  const [recherche, setRecherche]       = useState("");
 
   useEffect(() => {
-    const loadData = async () => {
-      const [maisonSnap, avisSnap, resaSnap] = await Promise.all([
+    // Maisons et avis — chargement une fois
+    const loadStatic = async () => {
+      const [maisonSnap, avisSnap] = await Promise.all([
         getDocs(collection(db, "maisons")),
         getDocs(collection(db, "avis")),
-        getDocs(query(collection(db, "reservations"), orderBy("dateCreation", "desc"))),
       ]);
       setMaisons(maisonSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
       setAvis(avisSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      setReservations(resaSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
       setLoading(false);
     };
-    loadData();
+    loadStatic();
+
+    // Réservations — temps réel avec onSnapshot
+    const unsubResa = onSnapshot(
+      query(collection(db, "reservations"), orderBy("dateCreation", "desc")),
+      (snap) => {
+        setReservations(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      }
+    );
+    return () => unsubResa();
   }, []);
 
-  const totalVues       = maisons.reduce((s, m) => s + (m.vues || 0), 0);
-  const totalWhatsapp   = maisons.reduce((s, m) => s + (m.clicsWhatsapp || 0), 0);
-  const proprietaires   = [...new Set(maisons.map((m) => m.proprietaireId))].length;
-  const totalLouees     = maisons.filter((m) => !m.disponible).length;
-  const totalReservations = reservations.length;
-  const resaEnAttente   = reservations.filter(r => r.statut === "en_attente").length;
+  // ── Compteurs ──────────────────────────────────────────────────────────────
+  const totalVues         = maisons.reduce((s, m) => s + (m.vues || 0), 0);
+  const totalWhatsapp     = maisons.reduce((s, m) => s + (m.clicsWhatsapp || 0), 0);
+  const proprietaires     = [...new Set(maisons.map((m) => m.proprietaireId))].length;
+  const totalLouees       = maisons.filter((m) => !m.disponible).length;
+  const resaEnAttente     = reservations.filter(r => r.statut === "en_attente").length;
+  const resaAcceptees     = reservations.filter(r => r.statut === "acceptee").length;
+  const resaAujourdhui    = reservations.filter(r => {
+    try {
+      const d = r.dateCreation?.toDate();
+      const auj = new Date();
+      return d && d.toDateString() === auj.toDateString();
+    } catch { return false; }
+  }).length;
 
   const locationParMois = maisons
     .filter((m) => !m.disponible && m.dateLocation)
@@ -65,19 +82,12 @@ export default function AdminPage() {
     setMaisons((prev) => prev.filter((m) => m.id !== id));
   };
 
-  const resaBadgeLabel = (statut) => ({
-    en_attente: "⏳ En attente",
-    acceptee:   "✅ Acceptée",
-    refusee:    "❌ Refusée",
-    autre_date: "📅 Autre date",
-  }[statut] || statut);
-
-  const resaBadgeColor = (statut) => ({
-    en_attente: { color: "#d97706", bg: "#fffbeb" },
-    acceptee:   { color: "#16a34a", bg: "#f0fdf4" },
-    refusee:    { color: "#dc2626", bg: "#fef2f2" },
-    autre_date: { color: "#7c3aed", bg: "#faf5ff" },
-  }[statut] || { color: "#555", bg: "#f3f4f6" });
+  const resaBadge = (statut) => ({
+    en_attente: { label: "⏳ En attente",  color: "#d97706", bg: "#fffbeb" },
+    acceptee:   { label: "✅ Acceptée",    color: "#16a34a", bg: "#f0fdf4" },
+    refusee:    { label: "❌ Refusée",     color: "#dc2626", bg: "#fef2f2" },
+    autre_date: { label: "📅 Autre date",  color: "#7c3aed", bg: "#faf5ff" },
+  }[statut] || { label: statut, color: "#555", bg: "#f3f4f6" });
 
   const card = (titre, valeur, couleur, emoji) => (
     <div style={{ background: "white", borderRadius: "16px", padding: "20px 16px",
@@ -131,6 +141,29 @@ export default function AdminPage() {
           </button>
         </div>
 
+        {/* ── Bandeau alerte réservations acceptées aujourd'hui ── */}
+        {resaAujourdhui > 0 && (
+          <div style={{ background: "#f0fdf4", border: "2px solid #16a34a",
+            borderRadius: "12px", padding: "14px 18px", marginBottom: "20px",
+            display: "flex", alignItems: "center", gap: "12px" }}>
+            <span style={{ fontSize: "28px" }}>🔔</span>
+            <div>
+              <p style={{ margin: 0, fontWeight: "bold", color: "#16a34a", fontSize: "14px" }}>
+                {resaAujourdhui} nouvelle{resaAujourdhui > 1 ? "s" : ""} réservation{resaAujourdhui > 1 ? "s" : ""} aujourd'hui
+              </p>
+              <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#555" }}>
+                Cliquez sur l'onglet Réservations pour voir les détails.
+              </p>
+            </div>
+            <button onClick={() => setOnglet("reservations")}
+              style={{ marginLeft: "auto", padding: "7px 14px", background: "#16a34a",
+                color: "white", border: "none", borderRadius: "8px",
+                cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}>
+              Voir →
+            </button>
+          </div>
+        )}
+
         {/* Cartes stats */}
         <div style={{ display: "flex", gap: "12px", marginBottom: "24px", flexWrap: "wrap" }}>
           {card("Maisons", maisons.length, "#16a34a", "🏡")}
@@ -138,7 +171,7 @@ export default function AdminPage() {
           {card("Vues totales", totalVues, "#7c3aed", "👁️")}
           {card("Clics WhatsApp", totalWhatsapp, "#25d366", "📲")}
           {card("Louées", totalLouees, "#dc2626", "🔑")}
-          {card("Réservations", totalReservations, "#1d4ed8", "📅")}
+          {card("Réservations", reservations.length, "#1d4ed8", "📅")}
           {card("Avis", avis.length, "#f59e0b", "⭐")}
         </div>
 
@@ -151,7 +184,7 @@ export default function AdminPage() {
           {tab("avis", "⭐ Avis")}
         </div>
 
-        {/* ONGLET STATS */}
+        {/* ══ ONGLET STATS ══ */}
         {onglet === "stats" && (
           <div>
             <div style={{ background: "white", borderRadius: "16px", padding: "20px 24px",
@@ -197,7 +230,7 @@ export default function AdminPage() {
                   { val: totalWhatsapp, label: "Clics WhatsApp", color: "#25d366" },
                   { val: totalVues > 0 ? Math.round((totalWhatsapp / totalVues) * 100) + "%" : "0%", label: "Taux vue → contact", color: "#f59e0b" },
                   { val: maisons.length > 0 ? Math.round((totalLouees / maisons.length) * 100) + "%" : "0%", label: "Taux d'occupation", color: "#dc2626" },
-                  { val: totalReservations, label: "Réservations", color: "#1d4ed8" },
+                  { val: resaAcceptees, label: "Visites acceptées", color: "#16a34a" },
                 ].map(({ val, label, color }) => (
                   <div key={label} style={{ flex: 1, minWidth: "120px", background: "#f0fdf4",
                     borderRadius: "12px", padding: "16px", textAlign: "center" }}>
@@ -210,7 +243,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* ONGLET LOCATIONS */}
+        {/* ══ ONGLET LOCATIONS ══ */}
         {onglet === "locations" && (
           <div style={{ background: "white", borderRadius: "16px", padding: "20px 24px",
             boxShadow: "0 4px 20px rgba(0,0,0,0.08)" }}>
@@ -248,7 +281,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* ONGLET RÉSERVATIONS */}
+        {/* ══ ONGLET RÉSERVATIONS ══ */}
         {onglet === "reservations" && (
           <div style={{ background: "white", borderRadius: "16px", padding: "20px 24px",
             boxShadow: "0 4px 20px rgba(0,0,0,0.08)" }}>
@@ -260,14 +293,41 @@ export default function AdminPage() {
                   {resaEnAttente} en attente
                 </span>
               )}
+              {resaAcceptees > 0 && (
+                <span style={{ marginLeft: "8px", background: "#f0fdf4", color: "#16a34a",
+                  padding: "2px 8px", borderRadius: "20px", fontSize: "12px" }}>
+                  {resaAcceptees} acceptée{resaAcceptees > 1 ? "s" : ""}
+                </span>
+              )}
             </h2>
+
+            {/* Résumé rapide */}
+            <div style={{ display: "flex", gap: "10px", marginBottom: "16px", flexWrap: "wrap" }}>
+              {[
+                { label: "En attente", count: resaEnAttente, color: "#d97706", bg: "#fffbeb" },
+                { label: "Acceptées", count: resaAcceptees, color: "#16a34a", bg: "#f0fdf4" },
+                { label: "Refusées", count: reservations.filter(r => r.statut === "refusee").length, color: "#dc2626", bg: "#fef2f2" },
+                { label: "Autre date", count: reservations.filter(r => r.statut === "autre_date").length, color: "#7c3aed", bg: "#faf5ff" },
+              ].map(({ label, count, color, bg }) => (
+                <div key={label} style={{ background: bg, borderRadius: "10px",
+                  padding: "10px 16px", textAlign: "center", minWidth: "80px" }}>
+                  <p style={{ margin: 0, fontSize: "20px", fontWeight: "bold", color }}>{count}</p>
+                  <p style={{ margin: 0, fontSize: "11px", color: "#666" }}>{label}</p>
+                </div>
+              ))}
+            </div>
+
             {reservations.length === 0 ? (
               <p style={{ color: "#999", textAlign: "center" }}>Aucune réservation</p>
             ) : (
               reservations.map((r) => {
-                const badge = resaBadgeColor(r.statut);
+                const badge = resaBadge(r.statut);
                 return (
-                  <div key={r.id} style={{ borderBottom: "1px solid #f3f4f6", padding: "14px 0" }}>
+                  <div key={r.id} style={{ borderBottom: "1px solid #f3f4f6",
+                    padding: "14px 0",
+                    borderLeft: r.statut === "acceptee" ? "3px solid #16a34a" :
+                                r.statut === "en_attente" ? "3px solid #d97706" : "none",
+                    paddingLeft: ["acceptee", "en_attente"].includes(r.statut) ? "12px" : "0" }}>
                     <div style={{ display: "flex", justifyContent: "space-between",
                       alignItems: "flex-start", marginBottom: "6px" }}>
                       <div>
@@ -275,25 +335,42 @@ export default function AdminPage() {
                           {r.maisonType} — {r.maisonQuartier}
                         </p>
                         <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#888" }}>
-                          {r.dateCreation?.toDate?.()?.toLocaleDateString("fr-FR") || ""}
+                          {r.dateCreation?.toDate?.()?.toLocaleDateString("fr-FR", {
+                            day: "numeric", month: "long", year: "numeric",
+                            hour: "2-digit", minute: "2-digit"
+                          }) || ""}
                         </p>
                       </div>
                       <span style={{ background: badge.bg, color: badge.color,
-                        padding: "2px 8px", borderRadius: "20px", fontSize: "11px", fontWeight: "bold" }}>
-                        {resaBadgeLabel(r.statut)}
+                        padding: "2px 8px", borderRadius: "20px",
+                        fontSize: "11px", fontWeight: "bold", whiteSpace: "nowrap" }}>
+                        {badge.label}
                       </span>
                     </div>
                     <p style={{ margin: 0, fontSize: "12px", color: "#555" }}>
-                      👤 {r.locataireNom} · 📱 {r.locataireTelephone}
+                      👤 <strong>{r.locataireNom}</strong> · 📱 {r.locataireTelephone}
                     </p>
                     <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#888" }}>
-                      📅 Visite : {r.dateVisite}
-                      {r.dateProposee && <span> → Proposée : {r.dateProposee}</span>}
+                      📅 Visite demandée : <strong>{r.dateVisite}</strong>
+                      {r.dateProposee && (
+                        <span style={{ color: "#7c3aed" }}> → Proposée : <strong>{r.dateProposee}</strong></span>
+                      )}
                     </p>
                     {r.message && (
                       <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#666", fontStyle: "italic" }}>
                         💬 "{r.message}"
                       </p>
+                    )}
+                    {/* Bouton contacter le locataire directement */}
+                    {r.statut === "acceptee" && (
+                      <a href={`https://wa.me/${r.locataireTelephone}`}
+                        target="_blank" rel="noreferrer"
+                        style={{ display: "inline-block", marginTop: "8px",
+                          padding: "5px 12px", background: "#25d366",
+                          color: "white", borderRadius: "8px",
+                          textDecoration: "none", fontSize: "12px", fontWeight: "bold" }}>
+                        💬 Contacter {r.locataireNom}
+                      </a>
                     )}
                   </div>
                 );
@@ -302,7 +379,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* ONGLET MAISONS */}
+        {/* ══ ONGLET MAISONS ══ */}
         {onglet === "maisons" && (
           <div style={{ background: "white", borderRadius: "16px", padding: "20px 24px",
             boxShadow: "0 4px 20px rgba(0,0,0,0.08)" }}>
@@ -368,7 +445,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* ONGLET AVIS */}
+        {/* ══ ONGLET AVIS ══ */}
         {onglet === "avis" && (
           <div style={{ background: "white", borderRadius: "16px", padding: "20px 24px",
             boxShadow: "0 4px 20px rgba(0,0,0,0.08)" }}>
@@ -393,6 +470,7 @@ export default function AdminPage() {
             )}
           </div>
         )}
+
       </div>
     </div>
   );
