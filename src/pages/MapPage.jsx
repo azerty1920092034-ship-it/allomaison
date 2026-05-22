@@ -5,6 +5,7 @@ import { collection, getDocs, deleteDoc, doc, updateDoc, increment, getDoc } fro
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import ReviewForm from "../components/ReviewForm";
+import ReservationForm from "../components/ReservationForm";
 
 // ── Composant clustering natif Leaflet ───────────────────────────────────────
 function ClusterLayer({ maisons, isMine, pointVert, pointOr, onSelect }) {
@@ -136,7 +137,8 @@ export default function MapPage({ setEcran }) {
   const [quartier, setQuartier]       = useState("Tous");
   const [type, setType]               = useState("Tous");
   const [selected, setSelected]       = useState(null);
-  const [showReview, setShowReview]   = useState(false);
+  const [showReview, setShowReview]       = useState(false);
+  const [showReservation, setShowReservation] = useState(false);
   const [suppression, setSuppression] = useState(false);
   const [userWp, setUserWp]           = useState("");
   const [photoAgrandie, setPhotoAgrandie] = useState(null);
@@ -371,6 +373,7 @@ export default function MapPage({ setEcran }) {
               onSelect={async (m) => {
                 setSelected(m);
                 setShowReview(false);
+                setShowReservation(false);
                 setEditMode(false);
                 try { await updateDoc(doc(db, "maisons", m.id), { vues: increment(1) }); } catch {}
               }}
@@ -397,7 +400,7 @@ export default function MapPage({ setEcran }) {
 
       {/* ════════════════════════════════════════════════════════════════════ */}
       {/* ── FICHE MAISON ── */}
-      {selected && !showReview && !editMode && (
+      {selected && !showReview && !showReservation && !editMode && (
         <div style={{ position: "absolute", bottom: "20px", left: "50%",
           transform: "translateX(-50%)", zIndex: 1000,
           background: "white", borderRadius: "16px",
@@ -481,6 +484,16 @@ export default function MapPage({ setEcran }) {
                 textDecoration: "none", fontWeight: "bold", marginBottom: "8px" }}>
               Contacter sur WhatsApp
             </a>
+
+            {/* Bouton réserver — visible si ce n'est pas ma maison */}
+            {!isMine(selected) && (
+              <button onClick={() => setShowReservation(true)}
+                style={{ width: "100%", padding: "10px", background: "#eff6ff",
+                  color: "#1d4ed8", border: "none", borderRadius: "10px",
+                  cursor: "pointer", fontSize: "14px", fontWeight: "bold", marginBottom: "8px" }}>
+                📅 Réserver cette maison
+              </button>
+            )}
 
             <button onClick={() => setShowReview(true)}
               style={{ width: "100%", padding: "10px", background: "#fef3c7",
@@ -656,6 +669,20 @@ export default function MapPage({ setEcran }) {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── Formulaire réservation ── */}
+      {selected && showReservation && (
+        <div style={{ position: "absolute", bottom: "20px", left: "50%",
+          transform: "translateX(-50%)", zIndex: 1000,
+          background: "white", borderRadius: "16px",
+          width: "min(320px, 92vw)", boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
+          maxHeight: "85vh", overflowY: "auto" }}>
+          <ReservationForm
+            maison={selected}
+            onClose={() => setShowReservation(false)}
+          />
         </div>
       )}
 
