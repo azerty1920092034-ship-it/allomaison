@@ -15,20 +15,25 @@ export default function ReservationForm({ maison, onClose }) {
     setLoading(true);
     try {
       await addDoc(collection(db, "reservations"), {
-        maisonId: maison.id,
-        maisonType: maison.type,
-        maisonQuartier: maison.quartier,
-        maisonPrix: maison.prix,
-        maisonPaiement: maison.paiement,
-        proprietaireId: maison.proprietaireId,
-        locataireId: auth.currentUser?.uid || null,
-        locataireNom: form.nom,
+        maisonId:          maison.id,
+        maisonType:        maison.type,
+        maisonQuartier:    maison.quartier,
+        maisonPrix:        maison.prix,
+        maisonPaiement:    maison.paiement,
+        // ── CORRECTION : on stocke aussi le whatsapp de la maison ──────────
+        // Permet au propriétaire de recevoir la réservation même si
+        // la maison a été publiée par l'admin avant sa création de compte
+        maisonWhatsapp:    maison.whatsapp || "",
+        proprietaireId:    maison.proprietaireId || "",
+        // ───────────────────────────────────────────────────────────────────
+        locataireId:       auth.currentUser?.uid || null,
+        locataireNom:      form.nom,
         locataireTelephone: form.telephone,
-        dateVisite: form.dateVisite,
-        message: form.message,
-        statut: "en_attente",
-        dateCreation: serverTimestamp(),
-        lu: false,
+        dateVisite:        form.dateVisite,
+        message:           form.message,
+        statut:            "en_attente",
+        dateCreation:      serverTimestamp(),
+        lu:                false,
       });
       setSucces(true);
     } catch (e) { setError("❌ Erreur : " + e.message); }

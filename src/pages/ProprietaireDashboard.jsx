@@ -47,16 +47,47 @@ export default function ProprietaireDashboard({ setEcran }) {
         );
       } else { reçuWp = true; }
 
-      const unsubR = onSnapshot(
+      // ── Double requête réservations ───────────────────────────────────────
+      // Les maisons publiées par l'admin ont proprietaireId = uid admin
+      // donc on cherche aussi par maisonWhatsapp pour retrouver les réservations
+      let resParId = [], resParWp = [], resReçuId = false, resReçuWp = false;
+
+      const fusionnerRes = () => {
+        if (!resReçuId || !resReçuWp) return;
+        const tous = [...resParId];
+        resParWp.forEach((r) => { if (!tous.find((x) => x.id === r.id)) tous.push(r); });
+        setReservations(tous.sort((a, b) =>
+          (b.dateCreation?.seconds || 0) - (a.dateCreation?.seconds || 0)
+        ));
+      };
+
+      // Requête 1 : réservations où proprietaireId == uid
+      const unsubR1 = onSnapshot(
         query(collection(db, "reservations"), where("proprietaireId", "==", uid)),
         (snap) => {
-          const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
-            .sort((a, b) => (b.dateCreation?.seconds || 0) - (a.dateCreation?.seconds || 0));
-          setReservations(data);
+          resParId = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          resReçuId = true;
+          fusionnerRes();
         }
       );
 
-      unsubAll = () => { unsub1(); unsub2(); unsubR(); };
+      // Requête 2 : réservations où maisonWhatsapp == numéro du propriétaire
+      // Capture les réservations des maisons publiées par l'admin avant inscription
+      let unsubR2 = () => {};
+      if (wp) {
+        unsubR2 = onSnapshot(
+          query(collection(db, "reservations"), where("maisonWhatsapp", "==", wp)),
+          (snap) => {
+            resParWp = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+            resReçuWp = true;
+            fusionnerRes();
+          }
+        );
+      } else {
+        resReçuWp = true;
+      }
+
+      unsubAll = () => { unsub1(); unsub2(); unsubR1(); unsubR2(); };
     });
 
     return () => { if (unsubAll) unsubAll(); };
@@ -363,7 +394,7 @@ export default function ProprietaireDashboard({ setEcran }) {
                           <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
                             <button onClick={() => {
                               handleReservation(r.id, "acceptee");
-                              window.open(`https://wa.me/${r.locataireTelephone}?text=Bonjour%20${encodeURIComponent(r.locataireNom)}%20!%20Votre%20demande%20de%20visite%20pour%20le%20${encodeURIComponent(r.maisonType)}%20%C3%A0%20${encodeURIComponent(r.maisonQuartier)}%20est%20accept%C3%A9e.%20Rendez-vous%20le%20${r.dateVisite}.%20-%20ALLomaison`, "_blank");
+                              window.open(`https://wa.me/${r.locataireTelephone}?text=Bonjour%20${encodeURIComponent(r.locataireNom)}%20!%20Votre%20demande%20de%20visite%20est%20accept%C3%A9e.%20Rendez-vous%20le%20${r.dateVisite}.%20-%20ALLomaison`, "_blank");
                             }}
                               style={{ flex: 1, padding: "9px", background: "#16a34a",
                                 color: "white", border: "none", borderRadius: "8px",
@@ -372,7 +403,7 @@ export default function ProprietaireDashboard({ setEcran }) {
                             </button>
                             <button onClick={() => {
                               handleReservation(r.id, "refusee");
-                              window.open(`https://wa.me/${r.locataireTelephone}?text=Bonjour%20${encodeURIComponent(r.locataireNom)}%20!%20Nous%20ne%20pouvons%20pas%20confirmer%20votre%20r%C3%A9servation%20pour%20le%20${encodeURIComponent(r.maisonType)}%20%C3%A0%20${encodeURIComponent(r.maisonQuartier)}.%20Veuillez%20nous%20excuser.%20-%20ALLomaison`, "_blank");
+                              window.open(`https://wa.me/${r.locataireTelephone}?text=Bonjour%20${encodeURIComponent(r.locataireNom)}%20!%20Nous%20ne%20pouvons%20pas%20confirmer%20votre%20r%C3%A9servation.%20Veuillez%20nous%20excuser.%20-%20ALLomaison`, "_blank");
                             }}
                               style={{ flex: 1, padding: "9px", background: "#fee2e2",
                                 color: "#dc2626", border: "none", borderRadius: "8px",
@@ -395,7 +426,7 @@ export default function ProprietaireDashboard({ setEcran }) {
                               <button onClick={() => {
                                 if (!autreDate[r.id]) return;
                                 handleReservation(r.id, "autre_date", autreDate[r.id]);
-                                window.open(`https://wa.me/${r.locataireTelephone}?text=Bonjour%20${encodeURIComponent(r.locataireNom)}%20!%20Je%20vous%20propose%20plut%C3%B4t%20le%20${autreDate[r.id]}%20pour%20la%20visite%20du%20${encodeURIComponent(r.maisonType)}%20%C3%A0%20${encodeURIComponent(r.maisonQuartier)}.%20-%20ALLomaison`, "_blank");
+                                window.open(`https://wa.me/${r.locataireTelephone}?text=Bonjour%20${encodeURIComponent(r.locataireNom)}%20!%20Je%20vous%20propose%20plut%C3%B4t%20le%20${autreDate[r.id]}%20pour%20la%20visite.%20-%20ALLomaison`, "_blank");
                                 setAutreDate(prev => ({ ...prev, [r.id]: "" }));
                               }}
                                 style={{ padding: "7px 12px", background: "#7c3aed",
