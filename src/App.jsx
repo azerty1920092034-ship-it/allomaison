@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { auth } from "./firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import AuthPage from "./pages/AuthPage";
@@ -13,21 +13,21 @@ import "./App.css";
 const ADMIN_EMAIL = "appsk1653@gmail.com";
 
 function App() {
-  const [user, setUser]               = useState(null);
-  const [ecran, setEcran]             = useState("choix");
-  const [loading, setLoading]         = useState(true);
-  const [carteChargee, setCarteChargee] = useState(false);
+  const [user, setUser]                   = useState(undefined); // undefined = pas encore connu
+  const [ecran, setEcran]                 = useState("choix");
+  const [carteChargee, setCarteChargee]   = useState(false);
+  const premierAppel                      = useRef(true);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (u) => {
-      if (u) {
-        // Attend que Firebase ait bien chargé le profil avant d'afficher
-        await u.reload();
-      }
-      setUser(u);
+    const unsub = onAuthStateChanged(auth, (u) => {
+      // Firebase appelle onAuthStateChanged immédiatement au montage
+      // puis une 2ème fois si la session change — on ignore le 2ème appel
+      // si l'utilisateur est déjà connu et n'a pas changé
+      if (!premierAppel.current && u?.uid === user?.uid) return;
+      premierAppel.current = false;
+
+      setUser(u ?? null);
       if (!u) setEcran("choix");
-      // Petit délai pour éviter le flash de rendu
-      setTimeout(() => setLoading(false), 100);
     });
     return () => unsub();
   }, []);
@@ -39,7 +39,8 @@ function App() {
     }
   }, [ecran]);
 
-  if (loading) return (
+  // undefined = Firebase n'a pas encore répondu
+  if (user === undefined) return (
     <div style={{ display: "flex", alignItems: "center",
       justifyContent: "center", height: "100vh", background: "#f0fdf4" }}>
       <p style={{ color: "#16a34a", fontSize: "18px" }}>🏠 Chargement...</p>
@@ -51,10 +52,8 @@ function App() {
 
   return (
     <>
-      {/* RoleChoice — monté seulement quand nécessaire */}
       {ecran === "choix" && <RoleChoice setEcran={setEcran} />}
 
-      {/* Carte — montée une fois et cachée/affichée via display */}
       {carteChargee && (
         <div style={{ display: ecran === "carte" ? "block" : "none",
           position: "fixed", inset: 0, zIndex: 1 }}>
