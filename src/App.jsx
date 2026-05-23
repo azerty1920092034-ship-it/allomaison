@@ -51,10 +51,10 @@ function App() {
 
   return (
     <>
-      <div style={{ display: ecran === "choix" ? "block" : "none" }}>
-        <RoleChoice setEcran={setEcran} />
-      </div>
+      {/* RoleChoice — monté seulement quand nécessaire */}
+      {ecran === "choix" && <RoleChoice setEcran={setEcran} />}
 
+      {/* Carte — montée une fois et cachée/affichée via display */}
       {carteChargee && (
         <div style={{ display: ecran === "carte" ? "block" : "none",
           position: "fixed", inset: 0, zIndex: 1 }}>
