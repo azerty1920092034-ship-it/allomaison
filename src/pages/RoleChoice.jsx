@@ -51,6 +51,14 @@ export default function RoleChoice({ setEcran }) {
     }
   };
 
+  // Attend la fin de la vérification avant d'afficher les boutons
+  if (chargement) return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center",
+      minHeight: "100vh", background: "#f0fdf4" }}>
+      <p style={{ color: "#16a34a", fontSize: "18px" }}>🏠 Chargement...</p>
+    </div>
+  );
+
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center",
       justifyContent: "center", minHeight: "100vh", background: "#f0fdf4" }}>

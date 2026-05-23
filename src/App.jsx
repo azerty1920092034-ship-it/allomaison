@@ -20,9 +20,14 @@ function App() {
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
+      if (u) {
+        // Attend que Firebase ait bien chargé le profil avant d'afficher
+        await u.reload();
+      }
       setUser(u);
       if (!u) setEcran("choix");
-      setLoading(false);
+      // Petit délai pour éviter le flash de rendu
+      setTimeout(() => setLoading(false), 100);
     });
     return () => unsub();
   }, []);
