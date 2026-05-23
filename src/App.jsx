@@ -7,14 +7,15 @@ import MapPage from "./pages/MapPage";
 import ListingForm from "./pages/ListingForm";
 import AdminPage from "./pages/AdminPage";
 import ProprietaireDashboard from "./pages/ProprietaireDashboard";
+import LocataireDashboard from "./pages/LocataireDashboard";
 import "./App.css";
 
 const ADMIN_EMAIL = "appsk1653@gmail.com";
 
 function App() {
-  const [user, setUser] = useState(null);
-  const [ecran, setEcran] = useState("choix");
-  const [loading, setLoading] = useState(true);
+  const [user, setUser]               = useState(null);
+  const [ecran, setEcran]             = useState("choix");
+  const [loading, setLoading]         = useState(true);
   const [carteChargee, setCarteChargee] = useState(false);
 
   useEffect(() => {
@@ -26,21 +27,16 @@ function App() {
     return () => unsub();
   }, []);
 
-  // ✅ Quand on va sur la carte, on attend 50ms puis on force resize
   useEffect(() => {
     if (ecran === "carte") {
       setCarteChargee(true);
-      setTimeout(() => {
-        window.dispatchEvent(new Event("resize"));
-      }, 50);
+      setTimeout(() => window.dispatchEvent(new Event("resize")), 50);
     }
   }, [ecran]);
 
   if (loading) return (
-    <div style={{
-      display: "flex", alignItems: "center",
-      justifyContent: "center", height: "100vh", background: "#f0fdf4",
-    }}>
+    <div style={{ display: "flex", alignItems: "center",
+      justifyContent: "center", height: "100vh", background: "#f0fdf4" }}>
       <p style={{ color: "#16a34a", fontSize: "18px" }}>🏠 Chargement...</p>
     </div>
   );
@@ -50,22 +46,19 @@ function App() {
 
   return (
     <>
-      {/* RoleChoice */}
       <div style={{ display: ecran === "choix" ? "block" : "none" }}>
         <RoleChoice setEcran={setEcran} />
       </div>
 
-      {/* Carte — montée seulement après premier accès, jamais démontée ensuite */}
       {carteChargee && (
-        <div style={{
-          display: ecran === "carte" ? "block" : "none",
-          position: "fixed", inset: 0, zIndex: 1
-        }}>
+        <div style={{ display: ecran === "carte" ? "block" : "none",
+          position: "fixed", inset: 0, zIndex: 1 }}>
           <MapPage setEcran={setEcran} user={user} />
         </div>
       )}
 
-      {ecran === "dashboard" && <ProprietaireDashboard setEcran={setEcran} />}
+      {ecran === "dashboard"  && <ProprietaireDashboard setEcran={setEcran} />}
+      {ecran === "locataire"  && <LocataireDashboard setEcran={setEcran} />}
       {ecran === "formulaire" && <ListingForm onPublished={() => setEcran("carte")} />}
     </>
   );

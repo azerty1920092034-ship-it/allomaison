@@ -1,29 +1,41 @@
 import { useState, useEffect } from "react";
 import { auth, db } from "../firebase";
 import { signOut } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 
 export default function RoleChoice({ setEcran }) {
-  const [installPrompt, setInstallPrompt] = useState(null);
-  const [installed, setInstalled]         = useState(false);
-  const [showGuide, setShowGuide]         = useState(false);
-  const [estProprietaire, setEstProprietaire] = useState(false);
-  const [nbReservations, setNbReservations]   = useState(0);
+  const [installPrompt, setInstallPrompt]   = useState(null);
+  const [installed, setInstalled]           = useState(false);
+  const [showGuide, setShowGuide]           = useState(false);
+  const [aMaisons, setAMaisons]             = useState(false); // a publié au moins une maison
+  const [chargement, setChargement]         = useState(true);
 
   useEffect(() => {
-    // Détecte installation
     const handler = (e) => { e.preventDefault(); setInstallPrompt(e); };
     window.addEventListener("beforeinstallprompt", handler);
     if (window.matchMedia("(display-mode: standalone)").matches) setInstalled(true);
 
-    // Vérifie si l'utilisateur est propriétaire
     const uid = auth.currentUser?.uid;
     if (uid) {
-      getDoc(doc(db, "users", uid)).then((snap) => {
-        if (snap.exists() && snap.data().role === "proprietaire") {
-          setEstProprietaire(true);
-        }
-      });
+      const verifier = async () => {
+        try {
+          // Récupère le whatsapp du profil
+          const userSnap = await getDoc(doc(db, "users", uid));
+          const wp = userSnap.exists() ? userSnap.data().whatsapp || "" : "";
+
+          // Vérifie si une maison est liée à cet uid OU ce whatsapp
+          const [snap1, snap2] = await Promise.all([
+            getDocs(query(collection(db, "maisons"), where("proprietaireId", "==", uid))),
+            wp ? getDocs(query(collection(db, "maisons"), where("whatsapp", "==", wp))) : Promise.resolve({ empty: true }),
+          ]);
+
+          setAMaisons(!snap1.empty || !snap2.empty);
+        } catch { setAMaisons(false); }
+        setChargement(false);
+      };
+      verifier();
+    } else {
+      setChargement(false);
     }
 
     return () => window.removeEventListener("beforeinstallprompt", handler);
@@ -48,6 +60,7 @@ export default function RoleChoice({ setEcran }) {
         <h1 style={{ color: "#16a34a", marginBottom: "8px" }}>🏠 ALLOmaison</h1>
         <p style={{ color: "#666", marginBottom: "32px" }}>Que voulez-vous faire ?</p>
 
+        {/* Localiser une maison */}
         <button onClick={() => setEcran("carte")}
           style={{ width: "100%", padding: "16px", marginBottom: "16px",
             background: "#16a34a", color: "white", border: "none",
@@ -55,26 +68,28 @@ export default function RoleChoice({ setEcran }) {
           🔍 Localiser une maison
         </button>
 
-        {/* Bouton dashboard propriétaire */}
-        <button onClick={() => setEcran("dashboard")}
+        {/* Espace locataire — toujours visible */}
+        <button onClick={() => setEcran("locataire")}
           style={{ width: "100%", padding: "16px", marginBottom: "16px",
-            background: "#f59e0b", color: "white", border: "none",
-            borderRadius: "12px", fontSize: "16px", cursor: "pointer",
-            position: "relative" }}>
-          🏡 Espace propriétaire
-          {nbReservations > 0 && (
-            <span style={{ position: "absolute", top: "-6px", right: "-6px",
-              background: "#dc2626", color: "white", borderRadius: "50%",
-              width: "20px", height: "20px", fontSize: "11px",
-              display: "flex", alignItems: "center", justifyContent: "center" }}>
-              {nbReservations}
-            </span>
-          )}
+            background: "#0284c7", color: "white", border: "none",
+            borderRadius: "12px", fontSize: "16px", cursor: "pointer" }}>
+          📅 Mon espace locataire
         </button>
 
+        {/* Espace propriétaire — visible seulement si a des maisons */}
+        {!chargement && aMaisons && (
+          <button onClick={() => setEcran("dashboard")}
+            style={{ width: "100%", padding: "16px", marginBottom: "16px",
+              background: "#f59e0b", color: "white", border: "none",
+              borderRadius: "12px", fontSize: "16px", cursor: "pointer" }}>
+            🏡 Espace propriétaire
+          </button>
+        )}
+
+        {/* Mettre une maison en ligne */}
         <button onClick={() => setEcran("formulaire")}
           style={{ width: "100%", padding: "16px", marginBottom: "24px",
-            background: "#0284c7", color: "white", border: "none",
+            background: "#7c3aed", color: "white", border: "none",
             borderRadius: "12px", fontSize: "16px", cursor: "pointer" }}>
           🏡 Mettre ma maison en ligne
         </button>
@@ -83,7 +98,7 @@ export default function RoleChoice({ setEcran }) {
         {!installed && (
           <button onClick={handleInstall}
             style={{ width: "100%", padding: "14px", marginBottom: "16px",
-              background: "#7c3aed", color: "white", border: "none",
+              background: "#334155", color: "white", border: "none",
               borderRadius: "12px", fontSize: "15px", cursor: "pointer" }}>
             📲 Installer l'application
           </button>
@@ -97,7 +112,6 @@ export default function RoleChoice({ setEcran }) {
           </div>
         )}
 
-        {/* Guide installation manuel */}
         {showGuide && (
           <div style={{ marginBottom: "16px", padding: "14px",
             background: "#f5f3ff", borderRadius: "12px",
