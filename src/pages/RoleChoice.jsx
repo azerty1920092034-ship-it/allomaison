@@ -123,10 +123,12 @@ export default function RoleChoice({ setEcran }) {
           </div>
         )}
 
-        <p onClick={() => signOut(auth)}
-          style={{ color: "#999", fontSize: "13px", cursor: "pointer" }}>
+        <button onClick={() => signOut(auth)}
+          style={{ width: "100%", padding: "12px", background: "none",
+            border: "1px solid #ddd", borderRadius: "12px",
+            color: "#999", fontSize: "13px", cursor: "pointer" }}>
           Se déconnecter
-        </p>
+        </button>
       </div>
     </div>
   );

@@ -351,10 +351,10 @@ export default function MapPage({ setEcran }) {
           </select>
         </div>
         <button onClick={() => setEcran("choix")}
-          style={{ padding: "6px 12px", background: "#fee2e2", color: "#dc2626",
-            border: "none", borderRadius: "8px", cursor: "pointer",
+          style={{ padding: "6px 12px", background: "#f3f4f6", color: "#555",
+            border: "1px solid #ddd", borderRadius: "8px", cursor: "pointer",
             fontSize: "13px", alignSelf: "flex-end" }}>
-          Quitter
+          ← Accueil
         </button>
       </div>
 
