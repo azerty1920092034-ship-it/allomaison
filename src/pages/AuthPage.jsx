@@ -7,6 +7,7 @@ import {
   sendPasswordResetEmail
 } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
+import "../theme.css";
 
 export default function AuthPage() {
   const [isNew, setIsNew]               = useState(true);
@@ -22,103 +23,76 @@ export default function AuthPage() {
 
   const handleSubmit = async () => {
     setError("");
-    if (!email.trim()) return setError("❌ Entrez votre adresse email.");
-    if (!password.trim()) return setError("❌ Entrez un mot de passe.");
-    if (password.length < 6) return setError("❌ Le mot de passe doit faire au moins 6 caractères.");
-
+    if (!email.trim()) return setError("Entrez votre adresse email.");
+    if (!password.trim()) return setError("Entrez un mot de passe.");
+    if (password.length < 6) return setError("Le mot de passe doit faire au moins 6 caractères.");
     setLoading(true);
     try {
       if (isNew) {
         const wp = whatsapp.replace(/[\s\-\+]/g, "");
-        if (!/^\d{8,15}$/.test(wp))
-          return setError("❌ Numéro WhatsApp invalide. Ex: 22967000000");
-
+        if (!/^\d{8,15}$/.test(wp)) {
+          setLoading(false);
+          return setError("Numéro WhatsApp invalide. Ex: 22967000000");
+        }
         const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
-
-        // Envoie email de vérification
         await sendEmailVerification(cred.user);
-
         await setDoc(doc(db, "users", cred.user.uid), {
-          email: email.trim(),
-          whatsapp: wp,
-          role: "proprietaire",
-          dateInscription: new Date(),
-          actif: true,
-          emailVerifie: false,
+          email: email.trim(), whatsapp: wp, role: "proprietaire",
+          dateInscription: new Date(), actif: true, emailVerifie: false,
         });
-
         setVerifEnvoye(true);
-
       } else {
         const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
-
-        // Vérifie si l'email est confirmé
         if (!cred.user.emailVerified) {
           await sendEmailVerification(cred.user);
-          setError("❌ Votre email n'est pas vérifié. Un nouvel email de vérification a été envoyé.");
+          setError("Email non vérifié. Un nouveau lien de confirmation a été envoyé.");
           await auth.signOut();
           setLoading(false);
           return;
         }
-
         if (whatsapp.trim()) {
           const wp = whatsapp.replace(/[\s\-\+]/g, "");
-          await setDoc(doc(db, "users", cred.user.uid), {
-            email: email.trim(), whatsapp: wp,
-          }, { merge: true });
+          await setDoc(doc(db, "users", cred.user.uid), { email: email.trim(), whatsapp: wp }, { merge: true });
         }
       }
     } catch (e) {
       const msg = {
-        "auth/email-already-in-use": "❌ Cet email est déjà utilisé. Connectez-vous.",
-        "auth/invalid-email":        "❌ Adresse email invalide.",
-        "auth/wrong-password":       "❌ Mot de passe incorrect.",
-        "auth/user-not-found":       "❌ Aucun compte avec cet email.",
-        "auth/too-many-requests":    "❌ Trop de tentatives. Réessayez dans quelques minutes.",
-        "auth/invalid-credential":   "❌ Email ou mot de passe incorrect.",
-      }[e.code] || ("❌ Erreur : " + e.message);
+        "auth/email-already-in-use": "Cet email est déjà utilisé. Connectez-vous.",
+        "auth/invalid-email":        "Adresse email invalide.",
+        "auth/wrong-password":       "Mot de passe incorrect.",
+        "auth/user-not-found":       "Aucun compte avec cet email.",
+        "auth/too-many-requests":    "Trop de tentatives. Réessayez dans quelques minutes.",
+        "auth/invalid-credential":   "Email ou mot de passe incorrect.",
+      }[e.code] || e.message;
       setError(msg);
     }
     setLoading(false);
   };
 
   const handleReset = async () => {
-    if (!email.trim()) return setError("❌ Entrez votre email pour réinitialiser.");
+    if (!email.trim()) return setError("Entrez votre email pour réinitialiser.");
     try {
       await sendPasswordResetEmail(auth, email.trim());
-      setResetSent(true);
-      setError("");
-    } catch (e) {
-      setError("❌ Email introuvable.");
-    }
+      setResetSent(true); setError("");
+    } catch { setError("Email introuvable."); }
   };
 
-  const inputStyle = () => ({
-    width: "100%", padding: "11px 12px", border: "1px solid #ddd",
-    borderRadius: "8px", fontSize: "14px",
-    boxSizing: "border-box", outline: "none", transition: "border-color .2s",
-  });
-
-  // Écran confirmation email envoyé
   if (verifEnvoye) return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center",
-      justifyContent: "center", minHeight: "100vh", background: "#f0fdf4", padding: "20px" }}>
-      <div style={{ background: "white", padding: "40px 36px", borderRadius: "20px",
-        boxShadow: "0 4px 24px rgba(0,0,0,0.1)", width: "100%", maxWidth: "360px",
-        textAlign: "center" }}>
-        <p style={{ fontSize: "48px", margin: "0 0 16px" }}>📧</p>
-        <h2 style={{ color: "#16a34a", margin: "0 0 12px" }}>Vérifiez votre email !</h2>
-        <p style={{ color: "#555", fontSize: "14px", margin: "0 0 8px" }}>
-          Un email de confirmation a été envoyé à :
+    <div className="am-loading" style={{ padding: "20px", background: "var(--page-bg)" }}>
+      <div className="am-card" style={{ maxWidth: 360, width: "100%", textAlign: "center", padding: "40px 32px" }}>
+        <div style={{ fontSize: 52, marginBottom: 16 }}>📧</div>
+        <h2 style={{ margin: "0 0 10px", color: "var(--green-700)", fontSize: "var(--font-size-xl)", fontWeight: 700 }}>
+          Vérifiez votre email
+        </h2>
+        <p style={{ color: "var(--slate-500)", fontSize: "var(--font-size-sm)", margin: "0 0 6px" }}>
+          Lien de confirmation envoyé à
         </p>
-        <p style={{ color: "#16a34a", fontWeight: "bold", margin: "0 0 16px" }}>{email}</p>
-        <p style={{ color: "#888", fontSize: "13px", margin: "0 0 24px" }}>
-          Cliquez sur le lien dans l'email puis revenez vous connecter.
+        <p style={{ color: "var(--green-600)", fontWeight: 600, margin: "0 0 20px", wordBreak: "break-all" }}>{email}</p>
+        <p style={{ color: "var(--slate-400)", fontSize: "var(--font-size-sm)", margin: "0 0 28px", lineHeight: 1.6 }}>
+          Cliquez sur le lien dans l'email, puis revenez vous connecter.
         </p>
-        <button onClick={() => { setVerifEnvoye(false); setIsNew(false); }}
-          style={{ width: "100%", padding: "13px", background: "#16a34a",
-            color: "white", border: "none", borderRadius: "10px",
-            fontSize: "15px", cursor: "pointer", fontWeight: "bold" }}>
+        <button className="am-btn am-btn-primary"
+          onClick={() => { setVerifEnvoye(false); setIsNew(false); }}>
           Aller à la connexion
         </button>
       </div>
@@ -126,112 +100,102 @@ export default function AuthPage() {
   );
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center",
-      justifyContent: "center", minHeight: "100vh", background: "#f0fdf4", padding: "20px" }}>
-      <div style={{ background: "white", padding: "40px 36px", borderRadius: "20px",
-        boxShadow: "0 4px 24px rgba(0,0,0,0.1)", width: "100%", maxWidth: "360px" }}>
+    <div className="am-loading" style={{ padding: "20px", background: "var(--page-bg)" }}>
+      <div className="am-card" style={{ maxWidth: 360, width: "100%", padding: "36px 32px" }}>
 
-        <h1 style={{ color: "#16a34a", textAlign: "center", marginBottom: "4px", fontSize: "26px" }}>
-          🏠 ALLOmaison
-        </h1>
-        <p style={{ textAlign: "center", color: "#666", marginBottom: "28px", fontSize: "14px" }}>
-          {isNew ? "Créer un compte" : "Se connecter"}
-        </p>
-
-        {/* Email */}
-        <div style={{ marginBottom: "12px" }}>
-          <p style={{ margin: "0 0 4px", fontSize: "13px", color: "#555" }}>Adresse email</p>
-          <input type="email" placeholder="Ex: kofficlean@gmail.com"
-            value={email}
-            onChange={(e) => { setEmail(e.target.value); setError(""); }}
-            onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-            style={inputStyle()} />
+        <div style={{ textAlign: "center", marginBottom: 28 }}>
+          <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center",
+            width: 52, height: 52, borderRadius: "var(--radius-md)",
+            background: "var(--green-50)", marginBottom: 14 }}>
+            <span style={{ fontSize: 26 }}>🏠</span>
+          </div>
+          <h1 style={{ margin: "0 0 4px", fontSize: "var(--font-size-xl)", fontWeight: 700,
+            color: "var(--slate-900)", letterSpacing: "-0.03em" }}>
+            ALLOmaison
+          </h1>
+          <p style={{ margin: 0, color: "var(--slate-500)", fontSize: "var(--font-size-sm)" }}>
+            {isNew ? "Créer un compte" : "Connexion"}
+          </p>
         </div>
 
-        {/* WhatsApp seulement à l'inscription */}
+        <div style={{ marginBottom: 14 }}>
+          <label className="am-label">Adresse email</label>
+          <input className="am-input" type="email" placeholder="kofficlean@gmail.com"
+            value={email}
+            onChange={(e) => { setEmail(e.target.value); setError(""); }}
+            onKeyDown={(e) => e.key === "Enter" && handleSubmit()} />
+        </div>
+
         {isNew && (
-          <div style={{ marginBottom: "12px" }}>
-            <p style={{ margin: "0 0 4px", fontSize: "13px", color: "#555" }}>
-              Numéro WhatsApp <span style={{ color: "#dc2626" }}>*</span>
-            </p>
+          <div style={{ marginBottom: 14 }}>
+            <label className="am-label">
+              Numéro WhatsApp <span style={{ color: "var(--red-500)" }}>*</span>
+            </label>
             <div style={{ position: "relative" }}>
-              <span style={{ position: "absolute", left: "12px", top: "50%",
-                transform: "translateY(-50%)", fontSize: "13px", color: "#888" }}>🇧🇯</span>
-              <input type="tel" placeholder="Ex: 22967000000"
+              <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)",
+                fontSize: 14, pointerEvents: "none" }}>🇧🇯</span>
+              <input className="am-input" type="tel" placeholder="22967000000"
                 value={whatsapp}
                 onChange={(e) => { setWhatsapp(e.target.value); setError(""); }}
-                style={{ ...inputStyle(), paddingLeft: "36px" }} />
+                style={{ paddingLeft: 40 }} />
             </div>
-            <p style={{ fontSize: "11px", color: "#999", margin: "4px 0 0" }}>
+            <p style={{ margin: "5px 0 0", fontSize: "var(--font-size-xs)", color: "var(--slate-400)" }}>
               Les locataires vous contacteront via ce numéro.
             </p>
           </div>
         )}
 
-        {/* Mot de passe */}
-        <div style={{ marginBottom: "20px" }}>
-          <p style={{ margin: "0 0 4px", fontSize: "13px", color: "#555" }}>Mot de passe</p>
+        <div style={{ marginBottom: 20 }}>
+          <label className="am-label">Mot de passe</label>
           <div style={{ position: "relative" }}>
-            <input type={showPassword ? "text" : "password"}
+            <input className="am-input" type={showPassword ? "text" : "password"}
               placeholder={isNew ? "Minimum 6 caractères" : "Votre mot de passe"}
               value={password}
               onChange={(e) => { setPassword(e.target.value); setError(""); }}
               onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-              style={{ ...inputStyle(), paddingRight: "80px" }} />
+              style={{ paddingRight: 80 }} />
             <button onClick={() => setShowPassword(!showPassword)}
-              style={{ position: "absolute", right: "10px", top: "50%",
-                transform: "translateY(-50%)", background: "none",
-                border: "none", cursor: "pointer", fontSize: "12px",
-                color: "#16a34a", fontWeight: "bold", padding: "0" }}>
+              style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)",
+                background: "none", border: "none", cursor: "pointer",
+                fontSize: "var(--font-size-xs)", color: "var(--green-600)", fontWeight: 600, padding: 0 }}>
               {showPassword ? "Masquer" : "Afficher"}
             </button>
           </div>
         </div>
 
-        {error && (
-          <div style={{ background: "#fef2f2", border: "1px solid #fecaca",
-            borderRadius: "8px", padding: "10px 12px", marginBottom: "16px",
-            fontSize: "13px", color: "#dc2626", lineHeight: "1.5" }}>
-            {error}
-          </div>
-        )}
+        {error && <div className="am-error-box" style={{ marginBottom: 16 }}>{error}</div>}
 
-        <button onClick={handleSubmit} disabled={loading}
-          style={{ width: "100%", padding: "13px",
-            background: loading ? "#86efac" : "#16a34a",
-            color: "white", border: "none", borderRadius: "10px",
-            fontSize: "15px", cursor: loading ? "not-allowed" : "pointer",
-            fontWeight: "bold", transition: "background .2s" }}>
-          {loading ? "⏳ Chargement..." : isNew ? "Créer mon compte 🏡" : "Se connecter"}
+        <button className="am-btn am-btn-primary" onClick={handleSubmit} disabled={loading}>
+          {loading ? "Chargement…" : isNew ? "Créer mon compte" : "Se connecter"}
         </button>
 
-        {/* Mot de passe oublié */}
         {!isNew && (
-          <div style={{ marginTop: "12px", textAlign: "center" }}>
+          <div style={{ marginTop: 14, textAlign: "center" }}>
             {!showReset ? (
-              <p onClick={() => setShowReset(true)}
-                style={{ color: "#0284c7", fontSize: "13px", cursor: "pointer" }}>
+              <button onClick={() => setShowReset(true)}
+                style={{ background: "none", border: "none", color: "var(--blue-600)",
+                  fontSize: "var(--font-size-sm)", cursor: "pointer" }}>
                 Mot de passe oublié ?
-              </p>
+              </button>
             ) : resetSent ? (
-              <p style={{ color: "#16a34a", fontSize: "13px" }}>
-                ✅ Email de réinitialisation envoyé !
-              </p>
+              <p className="am-success-box" style={{ margin: 0 }}>Email de réinitialisation envoyé !</p>
             ) : (
               <button onClick={handleReset}
-                style={{ background: "none", border: "none", color: "#0284c7",
-                  fontSize: "13px", cursor: "pointer", textDecoration: "underline" }}>
-                Envoyer un email de réinitialisation
+                style={{ background: "none", border: "none", color: "var(--blue-600)",
+                  fontSize: "var(--font-size-sm)", cursor: "pointer", textDecoration: "underline" }}>
+                Envoyer un lien de réinitialisation
               </button>
             )}
           </div>
         )}
 
-        <p onClick={() => { setIsNew(!isNew); setError(""); setWhatsapp(""); }}
-          style={{ textAlign: "center", marginTop: "18px", color: "#16a34a",
-            cursor: "pointer", fontSize: "13px", textDecoration: "underline" }}>
-          {isNew ? "Déjà un compte ? Se connecter" : "Pas encore de compte ? S'inscrire"}
-        </p>
+        <div style={{ marginTop: 20, textAlign: "center", borderTop: "1px solid var(--slate-100)", paddingTop: 18 }}>
+          <button onClick={() => { setIsNew(!isNew); setError(""); setWhatsapp(""); }}
+            style={{ background: "none", border: "none", color: "var(--green-600)",
+              fontSize: "var(--font-size-sm)", cursor: "pointer", textDecoration: "underline" }}>
+            {isNew ? "Déjà un compte ? Se connecter" : "Pas de compte ? S'inscrire"}
+          </button>
+        </div>
       </div>
     </div>
   );
