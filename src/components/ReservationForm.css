@@ -1,0 +1,96 @@
+.resa-form {
+  padding: var(--space-5) var(--space-6);
+}
+
+.resa-form-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-5);
+}
+
+.resa-form-title {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semi);
+  color: var(--color-text-primary);
+}
+
+.resa-form-close {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--gray-100);
+  border: none;
+  border-radius: var(--radius-full);
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+.resa-form-close:hover { background: var(--gray-200); }
+
+/* Récap maison */
+.resa-form-maison {
+  background: var(--green-50);
+  border: 1px solid var(--green-200);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.resa-form-maison-nom {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--green-700);
+  margin-bottom: 3px;
+}
+
+.resa-form-maison-prix {
+  font-size: var(--text-sm);
+  color: var(--green-600);
+}
+
+/* Champs */
+.resa-form-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.resa-form-textarea {
+  resize: vertical;
+  min-height: 80px;
+  line-height: 1.5;
+}
+
+/* Succès */
+.resa-form-succes {
+  padding: var(--space-8) var(--space-6);
+  text-align: center;
+}
+
+.resa-succes-icon {
+  font-size: 52px;
+  line-height: 1;
+  margin-bottom: var(--space-4);
+}
+
+.resa-succes-title {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semi);
+  color: var(--color-primary);
+  margin-bottom: var(--space-2);
+}
+
+.resa-succes-desc {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+  margin-bottom: var(--space-6);
+  max-width: 260px;
+  margin-left: auto;
+  margin-right: auto;
+}

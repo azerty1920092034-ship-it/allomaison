@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { auth, db } from "../firebase";
 import { signOut } from "firebase/auth";
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
-import "../theme.css";
+import "../styles/design-system.css";
 
 export default function RoleChoice({ setEcran }) {
   const [installPrompt, setInstallPrompt] = useState(null);

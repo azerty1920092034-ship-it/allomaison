@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { auth, db } from "../firebase";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
-import "../theme.css";
+import "../styles/design-system.css";
 
 const BADGES = {
   en_attente: { label: "En attente",           color: "var(--amber-600)", bg: "var(--amber-50)",
