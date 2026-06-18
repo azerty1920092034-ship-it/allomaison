@@ -4,10 +4,11 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendEmailVerification,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
 } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
-import "../theme.css";
+import "../styles/design-system.css";
+import "./AuthPage.css";
 
 export default function AuthPage() {
   const [isNew, setIsNew]               = useState(true);
