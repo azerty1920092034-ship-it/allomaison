@@ -22,6 +22,10 @@ const pointOr = L.divIcon({
   iconSize: [20,20], iconAnchor: [10,10],
 });
 
+/* ── Limites géographiques du Bénin ── */
+const BENIN_BOUNDS = [[6.0, 0.8], [12.5, 3.8]];
+const BENIN_CENTRE = [9.3, 2.3];
+
 const quartiers = ["Tous","Cotonou","Godomey","Cocotomey","Abomey-Calavi"];
 const types     = ["Tous","Chambre salon","Entree couchee","Studio","Maison entiere"];
 
@@ -104,8 +108,8 @@ async function uploadToCloudinary(file) {
 
 export default function MapPage({ setEcran }) {
   const [maisons, setMaisons]         = useState([]);
-  const [carteCentre, setCarteCentre] = useState([6.3654, 2.4183]);
-  const [carteZoom, setCarteZoom]     = useState(13);
+  const [carteCentre, setCarteCentre] = useState(BENIN_CENTRE);
+  const [carteZoom, setCarteZoom]     = useState(7);
   const [quartier, setQuartier]       = useState("Tous");
   const [type, setType]               = useState("Tous");
   const [selected, setSelected]       = useState(null);
@@ -202,7 +206,7 @@ export default function MapPage({ setEcran }) {
     finally { setSuppression(false); }
   };
 
-  const filtrees  = maisons.filter(m => {
+  const filtrees = maisons.filter(m => {
     const okQ = quartier === "Tous" || m.quartier === quartier;
     const okT = type === "Tous" || m.type === type;
     const okC = !isNaN(parseFloat(m.lat)) && !isNaN(parseFloat(m.lng));
@@ -251,8 +255,16 @@ export default function MapPage({ setEcran }) {
 
       {/* ── Carte ── */}
       <ErrorBoundary>
-        <MapContainer key="map" center={carteCentre} zoom={carteZoom}
-          style={{ height:"100%", width:"100%" }}>
+        <MapContainer
+          key="map"
+          center={carteCentre}
+          zoom={carteZoom}
+          minZoom={7}
+          maxZoom={18}
+          maxBounds={BENIN_BOUNDS}
+          maxBoundsViscosity={1.0}
+          style={{ height:"100%", width:"100%" }}
+        >
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
           <MapCentrer centre={carteCentre} zoom={carteZoom} />
           {!suppression && (
@@ -297,7 +309,6 @@ export default function MapPage({ setEcran }) {
             </p>
           </div>
 
-          {/* Galerie */}
           {(() => {
             const photos = getPhotos(selected);
             if (!photos.length) return null;
@@ -317,7 +328,6 @@ export default function MapPage({ setEcran }) {
             );
           })()}
 
-          {/* Vidéo */}
           {selected.video && (
             <div className="mp-video-block">
               <p className="mp-video-label">🎥 Vidéo de visite</p>
@@ -325,7 +335,6 @@ export default function MapPage({ setEcran }) {
             </div>
           )}
 
-          {/* Actions */}
           <div className="mp-fiche-actions">
             <a className="mp-btn-wa"
               href={"https://wa.me/" + selected.whatsapp + "?text=" + encodeURIComponent(
@@ -419,7 +428,6 @@ export default function MapPage({ setEcran }) {
             </div>
           </div>
 
-          {/* Vidéo */}
           <div className="mp-edit-video-block">
             <p className="mp-edit-video-label">🎥 Vidéo <span style={{ fontWeight:400, color:"var(--gray-400)", fontSize:"11px" }}>(facultatif)</span></p>
             {selected.video && !editForm._removeVideo ? (
@@ -447,7 +455,6 @@ export default function MapPage({ setEcran }) {
             )}
           </div>
 
-          {/* Photos */}
           <div className="mp-edit-photos-block">
             <span className="mp-edit-photos-label">📸 Photos ({editPhotos.length + newFiles.length}/6)</span>
             {(editPhotos.length > 0 || newFiles.length > 0) && (
