@@ -24,7 +24,7 @@ export default function AuthPage() {
 
   const handleSubmit = async () => {
     setError("");
-    if (!email.trim()) return setError("Entrez votre adresse email.");
+    if (!email.trim())    return setError("Entrez votre adresse email.");
     if (!password.trim()) return setError("Entrez un mot de passe.");
     if (password.length < 6) return setError("Le mot de passe doit faire au moins 6 caractères.");
     setLoading(true);
@@ -78,125 +78,174 @@ export default function AuthPage() {
     } catch { setError("Email introuvable."); }
   };
 
+  const switchMode = () => {
+    setIsNew(!isNew);
+    setError("");
+    setWhatsapp("");
+    setShowReset(false);
+    setResetSent(false);
+  };
+
+  /* ── Écran confirmation email ── */
   if (verifEnvoye) return (
-    <div className="am-loading" style={{ padding: "20px", background: "var(--page-bg)" }}>
-      <div className="am-card" style={{ maxWidth: 360, width: "100%", textAlign: "center", padding: "40px 32px" }}>
-        <div style={{ fontSize: 52, marginBottom: 16 }}>📧</div>
-        <h2 style={{ margin: "0 0 10px", color: "var(--green-700)", fontSize: "var(--font-size-xl)", fontWeight: 700 }}>
-          Vérifiez votre email
-        </h2>
-        <p style={{ color: "var(--slate-500)", fontSize: "var(--font-size-sm)", margin: "0 0 6px" }}>
-          Lien de confirmation envoyé à
-        </p>
-        <p style={{ color: "var(--green-600)", fontWeight: 600, margin: "0 0 20px", wordBreak: "break-all" }}>{email}</p>
-        <p style={{ color: "var(--slate-400)", fontSize: "var(--font-size-sm)", margin: "0 0 28px", lineHeight: 1.6 }}>
-          Cliquez sur le lien dans l'email, puis revenez vous connecter.
-        </p>
-        <button className="am-btn am-btn-primary"
-          onClick={() => { setVerifEnvoye(false); setIsNew(false); }}>
-          Aller à la connexion
-        </button>
+    <div className="auth-screen">
+      <div className="auth-card">
+        <div className="auth-verif">
+          <div className="auth-verif-icon">📧</div>
+          <h2 className="auth-verif-title">Vérifiez votre email</h2>
+          <p style={{ color: "var(--color-text-secondary)", fontSize: "var(--text-sm)",
+            marginBottom: 6 }}>Lien envoyé à</p>
+          <p className="auth-verif-email">{email}</p>
+          <p className="auth-verif-hint">
+            Cliquez sur le lien dans l'email, puis revenez vous connecter.
+          </p>
+          <button className="btn-primary"
+            onClick={() => { setVerifEnvoye(false); setIsNew(false); }}>
+            Aller à la connexion
+          </button>
+        </div>
       </div>
     </div>
   );
 
+  /* ── Formulaire principal ── */
   return (
-    <div className="am-loading" style={{ padding: "20px", background: "var(--page-bg)" }}>
-      <div className="am-card" style={{ maxWidth: 360, width: "100%", padding: "36px 32px" }}>
+    <div className="auth-screen">
+      <div className="auth-card">
 
-        <div style={{ textAlign: "center", marginBottom: 28 }}>
-          <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center",
-            width: 52, height: 52, borderRadius: "var(--radius-md)",
-            background: "var(--green-50)", marginBottom: 14 }}>
-            <span style={{ fontSize: 26 }}>🏠</span>
+        {/* Logo */}
+        <div className="auth-logo">
+          <div className="auth-logo-icon-wrap">🏠</div>
+          <div className="auth-logo-text">
+            ALLO<span>maison</span>
           </div>
-          <h1 style={{ margin: "0 0 4px", fontSize: "var(--font-size-xl)", fontWeight: 700,
-            color: "var(--slate-900)", letterSpacing: "-0.03em" }}>
-            ALLOmaison
-          </h1>
-          <p style={{ margin: 0, color: "var(--slate-500)", fontSize: "var(--font-size-sm)" }}>
-            {isNew ? "Créer un compte" : "Connexion"}
-          </p>
         </div>
 
-        <div style={{ marginBottom: 14 }}>
-          <label className="am-label">Adresse email</label>
-          <input className="am-input" type="email" placeholder="kofficlean@gmail.com"
-            value={email}
-            onChange={(e) => { setEmail(e.target.value); setError(""); }}
-            onKeyDown={(e) => e.key === "Enter" && handleSubmit()} />
+        {/* Onglets */}
+        <div className="auth-tabs" role="tablist">
+          <button
+            className={`auth-tab${isNew ? "" : " active"}`}
+            role="tab"
+            onClick={() => !loading && switchMode()}
+          >
+            Connexion
+          </button>
+          <button
+            className={`auth-tab${isNew ? " active" : ""}`}
+            role="tab"
+            onClick={() => !loading && switchMode()}
+          >
+            Inscription
+          </button>
         </div>
 
-        {isNew && (
-          <div style={{ marginBottom: 14 }}>
-            <label className="am-label">
-              Numéro WhatsApp <span style={{ color: "var(--red-500)" }}>*</span>
-            </label>
-            <div style={{ position: "relative" }}>
-              <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)",
-                fontSize: 14, pointerEvents: "none" }}>🇧🇯</span>
-              <input className="am-input" type="tel" placeholder="22967000000"
-                value={whatsapp}
-                onChange={(e) => { setWhatsapp(e.target.value); setError(""); }}
-                style={{ paddingLeft: 40 }} />
+        {/* Champs */}
+        <div className="auth-fields">
+
+          {/* Email */}
+          <div className="auth-field">
+            <label className="field-label">Adresse email</label>
+            <input
+              className="input"
+              type="email"
+              placeholder="kofficlean@gmail.com"
+              value={email}
+              onChange={(e) => { setEmail(e.target.value); setError(""); }}
+              onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+            />
+          </div>
+
+          {/* WhatsApp — inscription uniquement */}
+          {isNew && (
+            <div className="auth-field">
+              <label className="field-label">
+                Numéro WhatsApp <span style={{ color: "var(--red-500)" }}>*</span>
+              </label>
+              <div className="input-with-prefix">
+                <span className="input-prefix">🇧🇯</span>
+                <input
+                  className="input"
+                  type="tel"
+                  placeholder="22967000000"
+                  value={whatsapp}
+                  onChange={(e) => { setWhatsapp(e.target.value); setError(""); }}
+                />
+              </div>
+              <span className="field-hint">
+                Les locataires vous contacteront via ce numéro.
+              </span>
             </div>
-            <p style={{ margin: "5px 0 0", fontSize: "var(--font-size-xs)", color: "var(--slate-400)" }}>
-              Les locataires vous contacteront via ce numéro.
-            </p>
+          )}
+
+          {/* Mot de passe */}
+          <div className="auth-field">
+            <label className="field-label">Mot de passe</label>
+            <div className="input-with-suffix">
+              <input
+                className="input"
+                type={showPassword ? "text" : "password"}
+                placeholder={isNew ? "Minimum 6 caractères" : "Votre mot de passe"}
+                value={password}
+                onChange={(e) => { setPassword(e.target.value); setError(""); }}
+                onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+              />
+              <button
+                className="input-suffix-btn"
+                onClick={() => setShowPassword(!showPassword)}
+                type="button"
+              >
+                {showPassword ? "Masquer" : "Afficher"}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Erreur */}
+        {error && (
+          <div className="error-box fade-in" style={{ marginBottom: 16 }}>
+            {error}
           </div>
         )}
 
-        <div style={{ marginBottom: 20 }}>
-          <label className="am-label">Mot de passe</label>
-          <div style={{ position: "relative" }}>
-            <input className="am-input" type={showPassword ? "text" : "password"}
-              placeholder={isNew ? "Minimum 6 caractères" : "Votre mot de passe"}
-              value={password}
-              onChange={(e) => { setPassword(e.target.value); setError(""); }}
-              onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-              style={{ paddingRight: 80 }} />
-            <button onClick={() => setShowPassword(!showPassword)}
-              style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)",
-                background: "none", border: "none", cursor: "pointer",
-                fontSize: "var(--font-size-xs)", color: "var(--green-600)", fontWeight: 600, padding: 0 }}>
-              {showPassword ? "Masquer" : "Afficher"}
-            </button>
-          </div>
-        </div>
-
-        {error && <div className="am-error-box" style={{ marginBottom: 16 }}>{error}</div>}
-
-        <button className="am-btn am-btn-primary" onClick={handleSubmit} disabled={loading}>
-          {loading ? "Chargement…" : isNew ? "Créer mon compte" : "Se connecter"}
+        {/* Bouton principal */}
+        <button
+          className="btn-primary"
+          onClick={handleSubmit}
+          disabled={loading}
+        >
+          {loading ? (
+            <span className="btn-loading-dots">
+              <span /><span /><span />
+            </span>
+          ) : isNew ? "Créer mon compte" : "Se connecter"}
         </button>
 
+        {/* Reset mot de passe */}
         {!isNew && (
-          <div style={{ marginTop: 14, textAlign: "center" }}>
+          <div className="auth-reset">
             {!showReset ? (
-              <button onClick={() => setShowReset(true)}
-                style={{ background: "none", border: "none", color: "var(--blue-600)",
-                  fontSize: "var(--font-size-sm)", cursor: "pointer" }}>
+              <button className="auth-link" onClick={() => setShowReset(true)}>
                 Mot de passe oublié ?
               </button>
             ) : resetSent ? (
-              <p className="am-success-box" style={{ margin: 0 }}>Email de réinitialisation envoyé !</p>
+              <span className="auth-success">✓ Email de réinitialisation envoyé !</span>
             ) : (
-              <button onClick={handleReset}
-                style={{ background: "none", border: "none", color: "var(--blue-600)",
-                  fontSize: "var(--font-size-sm)", cursor: "pointer", textDecoration: "underline" }}>
-                Envoyer un lien de réinitialisation
+              <button className="auth-link" onClick={handleReset}>
+                Envoyer le lien de réinitialisation
               </button>
             )}
           </div>
         )}
 
-        <div style={{ marginTop: 20, textAlign: "center", borderTop: "1px solid var(--slate-100)", paddingTop: 18 }}>
-          <button onClick={() => { setIsNew(!isNew); setError(""); setWhatsapp(""); }}
-            style={{ background: "none", border: "none", color: "var(--green-600)",
-              fontSize: "var(--font-size-sm)", cursor: "pointer", textDecoration: "underline" }}>
-            {isNew ? "Déjà un compte ? Se connecter" : "Pas de compte ? S'inscrire"}
+        {/* Switch mode */}
+        <div className="auth-switch">
+          <button className="auth-switch-btn" onClick={switchMode}>
+            {isNew
+              ? "Déjà un compte ? Se connecter →"
+              : "Pas encore de compte ? S'inscrire →"}
           </button>
         </div>
+
       </div>
     </div>
   );

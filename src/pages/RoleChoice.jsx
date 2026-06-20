@@ -3,6 +3,34 @@ import { auth, db } from "../firebase";
 import { signOut } from "firebase/auth";
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import "../styles/design-system.css";
+import "./RoleChoice.css";
+
+const ACTIONS = (aMaisons, setEcran) => [
+  {
+    icon: "🔍", cls: "role-action-primary",
+    label: "Trouver une maison",
+    desc:  "Explorez les logements disponibles sur la carte",
+    onClick: () => setEcran("carte"),
+  },
+  {
+    icon: "📅", cls: "role-action-blue",
+    label: "Mes demandes de visite",
+    desc:  "Suivez l'état de vos réservations",
+    onClick: () => setEcran("locataire"),
+  },
+  ...(aMaisons ? [{
+    icon: "🏡", cls: "role-action-amber",
+    label: "Espace propriétaire",
+    desc:  "Gérez vos réservations reçues",
+    onClick: () => setEcran("dashboard"),
+  }] : []),
+  {
+    icon: "➕", cls: "role-action-purple",
+    label: "Mettre ma maison en ligne",
+    desc:  "Publiez votre logement en quelques minutes",
+    onClick: () => setEcran("formulaire"),
+  },
+];
 
 export default function RoleChoice({ setEcran }) {
   const [installPrompt, setInstallPrompt] = useState(null);
@@ -10,6 +38,7 @@ export default function RoleChoice({ setEcran }) {
   const [showGuide, setShowGuide]         = useState(false);
   const [aMaisons, setAMaisons]           = useState(false);
   const [chargement, setChargement]       = useState(true);
+  const [userEmail, setUserEmail]         = useState("");
 
   useEffect(() => {
     const handler = (e) => { e.preventDefault(); setInstallPrompt(e); };
@@ -17,6 +46,8 @@ export default function RoleChoice({ setEcran }) {
     if (window.matchMedia("(display-mode: standalone)").matches) setInstalled(true);
 
     const uid = auth.currentUser?.uid;
+    setUserEmail(auth.currentUser?.email || "");
+
     if (uid) {
       (async () => {
         try {
@@ -42,127 +73,82 @@ export default function RoleChoice({ setEcran }) {
       const { outcome } = await installPrompt.userChoice;
       if (outcome === "accepted") { setInstalled(true); setInstallPrompt(null); }
     } else {
-      setShowGuide(true);
+      setShowGuide(!showGuide);
     }
   };
 
+  /* ── Loader ── */
   if (chargement) return (
-    <div className="am-loading">
-      <div className="am-loading-dot" />
-      <p style={{ color: "var(--slate-500)", fontSize: "var(--font-size-sm)", margin: 0 }}>Chargement…</p>
+    <div className="role-loader">
+      <div className="role-loader-icon">🏠</div>
+      <div className="role-loader-dots">
+        <div className="role-loader-dot" />
+        <div className="role-loader-dot" />
+        <div className="role-loader-dot" />
+      </div>
     </div>
   );
 
-  const actions = [
-    {
-      icon: "🔍",
-      label: "Trouver une maison",
-      desc: "Explorez les logements disponibles sur la carte",
-      onClick: () => setEcran("carte"),
-      cls: "am-btn-primary",
-    },
-    {
-      icon: "📅",
-      label: "Mes demandes de visite",
-      desc: "Suivez l'état de vos réservations",
-      onClick: () => setEcran("locataire"),
-      cls: "am-btn-blue",
-    },
-    ...(aMaisons ? [{
-      icon: "🏡",
-      label: "Espace propriétaire",
-      desc: "Gérez vos réservations reçues",
-      onClick: () => setEcran("dashboard"),
-      cls: "am-btn-amber",
-    }] : []),
-    {
-      icon: "➕",
-      label: "Mettre ma maison en ligne",
-      desc: "Publiez votre logement en quelques minutes",
-      onClick: () => setEcran("formulaire"),
-      cls: "am-btn-purple",
-    },
-  ];
+  const actions = ACTIONS(aMaisons, setEcran);
 
   return (
-    <div className="am-loading" style={{ background: "var(--page-bg)", padding: "20px", alignItems: "stretch" }}>
-      <div style={{ maxWidth: 360, width: "100%", margin: "0 auto" }}>
+    <div className="role-screen">
+      <div className="role-inner">
 
-        {/* Header */}
-        <div style={{ textAlign: "center", marginBottom: 28, paddingTop: 8 }}>
-          <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center",
-            width: 60, height: 60, borderRadius: "var(--radius-lg)",
-            background: "var(--green-600)", marginBottom: 14, boxShadow: "0 4px 16px rgba(22,163,74,0.3)" }}>
-            <span style={{ fontSize: 30 }}>🏠</span>
-          </div>
-          <h1 style={{ margin: "0 0 4px", fontSize: "var(--font-size-2xl)", fontWeight: 700,
-            color: "var(--slate-900)", letterSpacing: "-0.04em" }}>
-            ALLOmaison
+        {/* ── Header ── */}
+        <div className="role-header">
+          <div className="role-logo-icon-wrap">🏠</div>
+          <h1 className="role-logo-text">
+            ALLO<span>maison</span>
           </h1>
-          <p style={{ margin: 0, color: "var(--slate-500)", fontSize: "var(--font-size-sm)" }}>
-            Que souhaitez-vous faire ?
-          </p>
+          <p className="role-logo-sub">Que souhaitez-vous faire ?</p>
         </div>
 
-        {/* Action cards */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
+        {/* ── Actions ── */}
+        <div className="role-actions">
           {actions.map((a, i) => (
-            <button key={i} onClick={a.onClick}
-              style={{ display: "flex", alignItems: "center", gap: 14,
-                background: "var(--white)", border: "1.5px solid var(--slate-100)",
-                borderRadius: "var(--radius-lg)", padding: "14px 16px",
-                cursor: "pointer", textAlign: "left", transition: "border-color 0.15s, box-shadow 0.15s",
-                boxShadow: "var(--shadow-sm)" }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--slate-200)"; e.currentTarget.style.boxShadow = "var(--shadow-md)"; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--slate-100)"; e.currentTarget.style.boxShadow = "var(--shadow-sm)"; }}>
-              <div style={{ width: 44, height: 44, borderRadius: "var(--radius-sm)",
-                background: "var(--slate-50)", display: "flex", alignItems: "center",
-                justifyContent: "center", fontSize: 22, flexShrink: 0 }}>
-                {a.icon}
+            <button
+              key={i}
+              className={`role-action-btn ${a.cls}`}
+              onClick={a.onClick}
+            >
+              <div className="role-action-icon">{a.icon}</div>
+              <div className="role-action-text">
+                <p className="role-action-label">{a.label}</p>
+                <p className="role-action-desc">{a.desc}</p>
               </div>
-              <div style={{ flex: 1 }}>
-                <p style={{ margin: "0 0 2px", fontWeight: 600, fontSize: "var(--font-size-base)",
-                  color: "var(--slate-800)" }}>{a.label}</p>
-                <p style={{ margin: 0, fontSize: "var(--font-size-xs)", color: "var(--slate-400)", lineHeight: 1.5 }}>
-                  {a.desc}
-                </p>
-              </div>
-              <span style={{ color: "var(--slate-300)", fontSize: 18 }}>›</span>
+              <svg className="role-action-arrow" width="16" height="16"
+                viewBox="0 0 16 16" fill="none">
+                <path d="M6 4l4 4-4 4" stroke="currentColor"
+                  strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </button>
           ))}
         </div>
 
-        {/* Install */}
+        {/* ── Installer l'app ── */}
         {!installed && (
-          <button onClick={handleInstall}
-            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-              width: "100%", padding: "12px", background: "var(--slate-800)", color: "var(--white)",
-              border: "none", borderRadius: "var(--radius-md)", fontSize: "var(--font-size-sm)",
-              fontWeight: 500, cursor: "pointer", marginBottom: 10 }}>
+          <button className="role-install-btn" onClick={handleInstall}>
             📲 Installer l'application
           </button>
         )}
 
         {installed && (
-          <div className="am-success-box" style={{ marginBottom: 10, textAlign: "center" }}>
-            Application installée ✓
-          </div>
+          <div className="role-installed">✓ Application installée</div>
         )}
 
         {/* Guide installation */}
         {showGuide && (
-          <div style={{ background: "var(--purple-50)", borderRadius: "var(--radius-md)",
-            padding: "14px 16px", marginBottom: 10, fontSize: "var(--font-size-sm)",
-            color: "var(--purple-600)", border: "1px solid #e9d5ff" }}>
-            <p style={{ fontWeight: 600, margin: "0 0 8px" }}>Comment installer</p>
+          <div className="role-guide">
+            <p className="role-guide-title">Comment installer</p>
             {/Android/i.test(navigator.userAgent) ? (
-              <ol style={{ margin: 0, paddingLeft: 16, lineHeight: 1.9 }}>
+              <ol className="role-guide-steps">
                 <li>Appuyez sur les <strong>3 points ⋮</strong></li>
                 <li>Sélectionnez <strong>"Ajouter à l'écran d'accueil"</strong></li>
                 <li>Confirmez en appuyant sur <strong>"Ajouter"</strong></li>
               </ol>
             ) : (
-              <ol style={{ margin: 0, paddingLeft: 16, lineHeight: 1.9 }}>
+              <ol className="role-guide-steps">
                 <li>Appuyez sur <strong>Partager</strong> 📤</li>
                 <li>Sélectionnez <strong>"Sur l'écran d'accueil"</strong></li>
                 <li>Confirmez en appuyant sur <strong>"Ajouter"</strong></li>
@@ -171,13 +157,15 @@ export default function RoleChoice({ setEcran }) {
           </div>
         )}
 
-        {/* Déconnexion */}
-        <button onClick={() => signOut(auth)}
-          style={{ width: "100%", padding: "11px", background: "none",
-            border: "1.5px solid var(--slate-200)", borderRadius: "var(--radius-md)",
-            color: "var(--slate-400)", fontSize: "var(--font-size-sm)", cursor: "pointer" }}>
+        {/* ── Déconnexion ── */}
+        <button className="role-signout-btn" onClick={() => signOut(auth)}>
           Se déconnecter
         </button>
+
+        {userEmail && (
+          <p className="role-user-email">{userEmail}</p>
+        )}
+
       </div>
     </div>
   );
