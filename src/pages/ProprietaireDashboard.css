@@ -1,0 +1,336 @@
+/* ═══════════════════════════════════════════════
+   ProprietaireDashboard — 2026
+   ═══════════════════════════════════════════════ */
+
+/* ── Page ── */
+.pd-screen {
+  min-height: 100vh;
+  background: var(--gray-50);
+  padding: 20px 16px 48px;
+}
+
+.pd-inner {
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+/* ── Header ── */
+.pd-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+  animation: fade-down 0.35s cubic-bezier(0.22,1,0.36,1) both;
+}
+
+@keyframes fade-down {
+  from { opacity: 0; transform: translateY(-10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.pd-header-left h2 {
+  margin: 0 0 2px;
+  font-size: var(--text-xl);
+  font-weight: 700;
+  color: var(--gray-900);
+  letter-spacing: -0.4px;
+}
+
+.pd-header-wp {
+  font-size: var(--text-xs);
+  color: var(--gray-400);
+  margin: 0;
+}
+
+.pd-header-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* ── Alerte en attente ── */
+.pd-alert {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--amber-50);
+  border: 1.5px solid #fde68a;
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  animation: slide-in 0.3s cubic-bezier(0.22,1,0.36,1) both;
+}
+
+@keyframes slide-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.pd-alert-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: var(--amber-500);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.pd-alert-text {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--amber-600);
+}
+
+/* ── État vide ── */
+.pd-empty {
+  background: #fff;
+  border: 1px solid var(--gray-100);
+  border-radius: var(--radius-xl);
+  padding: 48px 32px;
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+}
+
+.pd-empty-icon {
+  font-size: 40px;
+  margin-bottom: 12px;
+}
+
+.pd-empty h3 {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--gray-700);
+  margin: 0 0 6px;
+}
+
+.pd-empty p {
+  font-size: var(--text-sm);
+  color: var(--gray-400);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* ── Liste ── */
+.pd-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ── Carte réservation ── */
+.pd-res-card {
+  background: #fff;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--gray-100);
+  border-left-width: 3px;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  transition: box-shadow 0.18s ease, transform 0.18s ease;
+  animation: slide-in 0.35s cubic-bezier(0.22,1,0.36,1) both;
+}
+
+.pd-res-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+/* ── Card header ── */
+.pd-res-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 14px 18px 12px;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.pd-res-type {
+  margin: 0 0 2px;
+  font-weight: 600;
+  font-size: var(--text-base);
+  color: var(--gray-800);
+  letter-spacing: -0.2px;
+}
+
+.pd-res-date {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--gray-400);
+}
+
+/* Badge */
+.pd-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── Infos locataire ── */
+.pd-res-info {
+  padding: 12px 18px;
+  background: var(--gray-50);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pd-res-info p {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--gray-600);
+  line-height: 1.4;
+}
+
+.pd-res-info .pd-msg {
+  font-style: italic;
+  color: var(--gray-400);
+}
+
+.pd-res-info .pd-autre-date {
+  color: var(--purple-600);
+  font-weight: 500;
+}
+
+/* ── Actions en_attente ── */
+.pd-res-actions {
+  padding: 12px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pd-action-row {
+  display: flex;
+  gap: 8px;
+}
+
+.pd-btn-accept {
+  flex: 1;
+  padding: 11px;
+  background: linear-gradient(135deg, var(--green-500), var(--green-700));
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(22,163,74,0.25);
+  transition: all 0.15s ease;
+}
+
+.pd-btn-accept:hover {
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+
+.pd-btn-refuse {
+  flex: 1;
+  padding: 11px;
+  background: var(--red-50);
+  color: var(--red-600);
+  border: 1.5px solid #fecaca;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pd-btn-refuse:hover {
+  background: #fee2e2;
+  border-color: var(--red-500);
+}
+
+/* Autre date */
+.pd-autre-date-block {
+  background: var(--purple-50);
+  border: 1px solid #e9d5ff;
+  border-radius: var(--radius-sm);
+  padding: 12px;
+}
+
+.pd-autre-date-label {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--purple-600);
+  margin: 0 0 8px;
+}
+
+.pd-autre-date-row {
+  display: flex;
+  gap: 8px;
+}
+
+.pd-date-input {
+  flex: 1;
+  padding: 9px 10px;
+  background: #fff;
+  border: 1.5px solid #e9d5ff;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-family: var(--font-sans);
+  color: var(--gray-900);
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pd-date-input:focus {
+  border-color: var(--purple-500);
+  box-shadow: 0 0 0 3px rgba(168,85,247,0.12);
+}
+
+.pd-btn-autre-date {
+  padding: 9px 14px;
+  background: var(--purple-600);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.pd-btn-autre-date:hover {
+  background: #7e22ce;
+  transform: translateY(-1px);
+}
+
+/* ── Contact WhatsApp (déjà traité) ── */
+.pd-res-contact {
+  padding: 10px 18px;
+}
+
+.pd-wa-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px;
+  background: var(--green-50);
+  color: var(--green-700);
+  border: 1px solid var(--green-200);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  transition: background 0.15s ease;
+}
+
+.pd-wa-link:hover {
+  background: var(--green-100);
+}
