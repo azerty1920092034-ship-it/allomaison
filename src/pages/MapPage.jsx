@@ -24,7 +24,7 @@ const pointOr = L.divIcon({
 
 /* ── Limites géographiques du Bénin ── */
 const BENIN_BOUNDS = [[6.0, 0.8], [12.5, 3.8]];
-const BENIN_CENTRE = [9.3, 2.3];
+const BENIN_CENTRE = [6.4500, 2.3500];
 
 const quartiers = ["Tous","Cotonou","Godomey","Cocotomey","Abomey-Calavi"];
 const types     = ["Tous","Chambre salon","Entree couchee","Studio","Maison entiere"];
@@ -109,7 +109,7 @@ async function uploadToCloudinary(file) {
 export default function MapPage({ setEcran }) {
   const [maisons, setMaisons]         = useState([]);
   const [carteCentre, setCarteCentre] = useState(BENIN_CENTRE);
-  const [carteZoom, setCarteZoom]     = useState(7);
+  const [carteZoom, setCarteZoom] = useState(13);
   const [quartier, setQuartier]       = useState("Tous");
   const [type, setType]               = useState("Tous");
   const [selected, setSelected]       = useState(null);
